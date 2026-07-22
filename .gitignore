@@ -10,3 +10,4 @@ assets/dh.jpg
 .DS_Store
 .vscode/
 .idea/
+dist/

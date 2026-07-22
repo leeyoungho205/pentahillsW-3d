@@ -5,7 +5,26 @@
 
 ---
 
-## 실행 방법
+## 🌐 바로 보기
+
+**https://pentahillsw-3d.pages.dev**
+
+Cloudflare Pages로 배포되어 있어 설치 없이 바로 쓸 수 있습니다.
+
+### 배포 갱신하기
+
+```bash
+rm -rf dist && mkdir dist && git archive main | tar -x -C dist && rm -rf dist/.claude
+npx wrangler@3 pages deploy dist --project-name=pentahillsw-3d --branch=main
+```
+
+> `git archive`로 **커밋된 파일만** 담아서 배포합니다.
+> 저장소에서 제외한 이미지(인물이 찍힌 모델하우스 사진 등)가 실수로 공개되지 않게 하려는 것이니
+> `dist` 대신 프로젝트 폴더를 통째로 배포하지 마세요.
+
+---
+
+## 로컬에서 실행
 
 브라우저 보안 정책 때문에 파일을 더블클릭해서 여는 방식(`file://`)으로는 동작하지 않습니다.
 
