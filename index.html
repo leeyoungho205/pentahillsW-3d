@@ -64,6 +64,17 @@
         </div>
         <button id="compareBtn" class="wide">⚖️ 이 층 1~4호 한번에 비교</button>
         <button id="backBtn" class="wide ghost hidden">↩ 단지 전체 보기로</button>
+        <p class="hint tip">💡 3D 화면에서 동을 <b>직접 클릭</b>해도 그 세대가 선택됩니다.</p>
+      </section>
+
+      <section>
+        <h2>🔥 전 세대 일조 히트맵</h2>
+        <p class="hint">
+          1차 9개 동의 <b>모든 세대</b>를 한 번에 계산해서 층·호수별 일조 시간을 격자로 보여줍니다.
+          칸을 누르면 그 세대로 이동합니다.
+        </p>
+        <button id="heatBtn" class="wide">📊 전 세대 계산하기</button>
+        <button id="shareBtn" class="wide ghost">🔗 이 화면 링크 복사</button>
       </section>
 
       <section>
@@ -91,6 +102,25 @@
         <h2>⚖️ 호수별 비교</h2>
         <p class="hint" id="compareTitle"></p>
         <table id="compareTable"></table>
+      </section>
+
+      <section>
+        <h2>🎓 학습 모드 <span id="learnBadge" class="badge hidden">실제 조건 아님</span></h2>
+        <p class="hint">
+          단지는 그대로 두고 <b>지구 조건만</b> 바꿔봅니다. 계절이 왜 생기는지 눈으로 확인할 수 있습니다.
+        </p>
+        <label class="slider-label">관측지 위도 <b id="latLabel">35.8°</b></label>
+        <input type="range" id="latSlider" min="-90" max="90" step="0.5" value="35.845">
+        <div class="preset-row">
+          <button class="preset lat-preset" data-lat="0">적도</button>
+          <button class="preset lat-preset" data-lat="35.845">경산</button>
+          <button class="preset lat-preset" data-lat="37.57">서울</button>
+          <button class="preset lat-preset" data-lat="66.5">북극권</button>
+        </div>
+        <label class="slider-label">지구 자전축 기울기 <b id="tiltLabel">23.4°</b></label>
+        <input type="range" id="tiltSlider" min="0" max="45" step="0.5" value="23.439">
+        <div id="learnInfo"></div>
+        <button id="learnReset" class="wide ghost">↩ 실제 지구 조건으로</button>
       </section>
 
       <section>
@@ -127,6 +157,18 @@
   </aside>
 
   <div id="viewBadge" class="hidden"></div>
+
+  <!-- 전 세대 일조 히트맵 (계산 후 화면 아래에 펼쳐짐) -->
+  <div id="heatBox" class="hidden">
+    <div class="heat-head">
+      <b>🔥 전 세대 일조 히트맵</b>
+      <div id="heatLegend" class="heat-legend"></div>
+      <button id="csvBtn">⬇ CSV</button>
+      <button id="heatClose">✕</button>
+    </div>
+    <div id="heatProgress"></div>
+    <div class="heat-scroll"><canvas id="heatCanvas"></canvas></div>
+  </div>
 
   <script type="module" src="./js/main.js"></script>
 </body>

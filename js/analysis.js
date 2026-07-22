@@ -12,8 +12,8 @@
  */
 
 import * as THREE from 'three';
-import { getSunPosition, sunDirectionVector, kstDate } from './sun.js';
-import { SITE_LOCATION } from './siteData.js';
+import { getSunPosition, sunDirectionVector, kstDate, OBSERVER } from './sun.js';
+
 
 const raycaster = new THREE.Raycaster();
 raycaster.far = 3000;
@@ -27,7 +27,7 @@ raycaster.far = 3000;
  * @returns {{samples:Array, totalHours:number, longestRun:number, coreHours:number}}
  */
 export function analyzeDaylight(position, normal, blockers, ymd) {
-  const { lat, lon, timezone } = SITE_LOCATION;
+  const { lat, lon, timezone } = OBSERVER;
   const step = 5 / 60; // 5분
   const samples = [];
 
@@ -77,7 +77,7 @@ export function analyzeDaylight(position, normal, blockers, ymd) {
  * @param {number} radius - 궤적 반지름(m)
  */
 export function createSunPath(ymd, radius = 500) {
-  const { lat, lon, timezone } = SITE_LOCATION;
+  const { lat, lon, timezone } = OBSERVER;
   const points = [];
 
   for (let h = 0; h <= 24; h += 0.1) {

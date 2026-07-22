@@ -160,6 +160,39 @@ button.ghost { background: transparent; color: var(--dim); }
 .verdict.ok { background: rgba(95,211,154,.12); color: #8ee7bb; }
 .verdict.ng { background: rgba(255,123,123,.12); color: #ffb0b0; }
 
+/* ===== 학습 모드 ===== */
+.badge {
+  font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px;
+  background: rgba(255,123,123,.2); color: #ffb0b0; margin-left: 6px; vertical-align: 2px;
+}
+#learnInfo {
+  font-size: 11px; line-height: 1.65; color: var(--dim); margin-top: 10px;
+  padding: 9px 10px; border-radius: 9px; background: rgba(77,166,255,.1);
+}
+#learnInfo b { color: var(--accent2); }
+#learnInfo .gap { color: var(--accent); }
+.hint.tip { margin: 10px 0 0; color: #8fa4c4; }
+
+/* ===== 전 세대 일조 히트맵 ===== */
+#heatBox {
+  position: fixed; left: 350px; right: 14px; bottom: 14px; z-index: 28;
+  background: var(--panel); backdrop-filter: blur(14px);
+  border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+  max-height: 62vh; display: flex; flex-direction: column; gap: 8px;
+}
+.heat-head { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.heat-head button { padding: 5px 10px; font-size: 11px; }
+#heatClose { margin-left: auto; }
+.heat-legend { display: flex; gap: 9px; font-size: 10px; color: var(--dim); flex-wrap: wrap; }
+.heat-legend i {
+  display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+  margin-right: 4px; vertical-align: -1px;
+}
+#heatProgress { font-size: 11px; color: var(--dim); line-height: 1.6; }
+#heatProgress b { color: var(--text); }
+.heat-scroll { overflow: auto; flex: 1; }
+#heatCanvas { display: block; cursor: pointer; }
+
 /* ===== 평형 색상표 ===== */
 #typeLegend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .legend-item {
@@ -210,4 +243,7 @@ button.ghost { background: transparent; color: var(--dim); }
   #panelToggle { right: 14px; top: -14px; }
   #panel.collapsed #panelToggle { right: 14px; top: -34px; }
   #viewBadge { bottom: auto; top: 96px; font-size: 12px; }
+  /* 좁은 화면에서는 패널이 아래를 쓰므로 히트맵은 위쪽에 띄운다 */
+  #heatBox { left: 8px; right: 8px; top: 92px; bottom: auto; max-height: 42vh; }
+  .heat-head { flex-wrap: wrap; }
 }

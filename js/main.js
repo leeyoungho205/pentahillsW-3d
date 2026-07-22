@@ -20,7 +20,8 @@ import {
   BUILDINGS, PHASE2, PHASE2_DEFAULTS, SITE_LOCATION, FLOOR_HEIGHT,
   NORTH_OFFSET_DEG, TYPE_NAMES, px2m,
 } from './siteData.js';
-import { getSunPosition, sunDirectionVector, kstDate, findSunriseSunset, formatHour } from './sun.js';
+import { getSunPosition, sunDirectionVector, kstDate, findSunriseSunset, formatHour, OBSERVER } from './sun.js';
+import { computeAllUnits, drawHeatmap, toCSV, HEAT_LEGEND } from './heatmap.js';
 import {
   createTower, getUnitAnchor, createWindowFrame, placeWindowFrame,
   setTypeColorMode, selectWing,
@@ -150,7 +151,7 @@ const state = {
 // 5. 태양
 // ────────────────────────────────────────────────────────────
 function updateSun() {
-  const { lat, lon, timezone } = SITE_LOCATION;
+  const { lat, lon, timezone } = OBSERVER;
   const { altitude, azimuth } = getSunPosition(kstDate(state.date, state.hour, timezone), lat, lon);
   const d = sunDirectionVector(altitude, azimuth);
 
@@ -183,9 +184,16 @@ function updateSunPath() {
   sunPathLine.visible = $('chkPath').checked;
   scene.add(sunPathLine);
 
-  const { sunrise, sunset } = findSunriseSunset(state.date, SITE_LOCATION.lat, SITE_LOCATION.lon);
-  $('sunrise').textContent = formatHour(sunrise);
-  $('sunset').textContent = formatHour(sunset);
+  const { sunrise, sunset, polar } = findSunriseSunset(state.date);
+  if (polar) {
+    // 고위도에서는 해가 하루 종일 떠 있거나(백야) 아예 뜨지 않는다(극야)
+    const label = polar === 'day' ? '백야 ☀' : '극야 ☾';
+    $('sunrise').textContent = label;
+    $('sunset').textContent = label;
+  } else {
+    $('sunrise').textContent = formatHour(sunrise);
+    $('sunset').textContent = formatHour(sunset);
+  }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -297,14 +305,14 @@ syncBuilding();
 $('dateInput').value = state.date;
 $('dateInput').addEventListener('change', (e) => {
   state.date = e.target.value;
-  document.querySelectorAll('.preset').forEach((p) => p.classList.toggle('on', p.dataset.date === state.date));
+  document.querySelectorAll('.preset[data-date]').forEach((p) => p.classList.toggle('on', p.dataset.date === state.date));
   updateSunPath(); updateSun();
 });
-document.querySelectorAll('.preset').forEach((btn) => {
+document.querySelectorAll('.preset[data-date]').forEach((btn) => {
   btn.addEventListener('click', () => {
     state.date = btn.dataset.date;
     $('dateInput').value = state.date;
-    document.querySelectorAll('.preset').forEach((p) => p.classList.remove('on'));
+    document.querySelectorAll('.preset[data-date]').forEach((p) => p.classList.remove('on'));
     btn.classList.add('on');
     updateSunPath(); updateSun();
   });
@@ -480,7 +488,246 @@ $('compareBtn').addEventListener('click', () => {
 });
 
 // ────────────────────────────────────────────────────────────
-// 9. 렌더 루프
+// 9. 전 세대 일조 히트맵
+// ────────────────────────────────────────────────────────────
+let heatData = null;
+
+$('heatBtn').addEventListener('click', async () => {
+  const btn = $('heatBtn');
+  btn.disabled = true;
+  $('heatBox').classList.remove('hidden');
+
+  heatData = await computeAllUnits(towerMap, blockers, state.date, (done, all) => {
+    $('heatProgress').textContent = `계산 중… ${done}/${all}개 동`;
+  });
+
+  const s = heatData.stats;
+  const pct = (n) => `${((n / s.total) * 100).toFixed(0)}%`;
+  $('heatProgress').innerHTML =
+    `<b>${state.date}</b> 기준 · 총 <b>${s.total.toLocaleString()}세대</b><br>` +
+    `일조 4시간 이상 <b>${s.pass4h.toLocaleString()}</b>세대 (${pct(s.pass4h)}) · ` +
+    `연속 2시간 이상 <b>${s.pass2run.toLocaleString()}</b>세대 (${pct(s.pass2run)}) · ` +
+    `거의 안 드는 세대 <b>${s.zero.toLocaleString()}</b> (${pct(s.zero)})`;
+
+  $('heatLegend').innerHTML = HEAT_LEGEND
+    .map(([c, t]) => `<span><i style="background:${c}"></i>${t}</span>`).join('');
+  redrawHeatmap();
+  btn.disabled = false;
+});
+
+function redrawHeatmap() {
+  if (!heatData) return;
+  const sel = { id: $('bldSelect').value, ho: +$('hoSelect').value, floor: +$('floorSlider').value };
+  heatCells = drawHeatmap($('heatCanvas'), heatData, state.picked ? sel : null).cells;
+}
+let heatCells = [];
+
+// 히트맵 칸을 누르면 그 세대로 이동한다
+$('heatCanvas').addEventListener('click', (e) => {
+  const r = $('heatCanvas').getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const hit = heatCells.find((c) => mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h);
+  if (!hit) return;
+  selectUnit(hit.id, hit.ho, hit.floor);
+});
+
+$('heatClose').addEventListener('click', () => $('heatBox').classList.add('hidden'));
+
+$('csvBtn').addEventListener('click', () => {
+  if (!heatData) return;
+  const blob = new Blob([toCSV(heatData)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `펜타힐즈_일조분석_${state.date}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+/** 동·호·층을 한 번에 선택 (히트맵·3D 클릭·URL 이 공통으로 쓴다) */
+function selectUnit(id, ho, floor) {
+  $('bldSelect').value = id;
+  syncBuilding();
+  $('hoSelect').value = String(ho);
+  $('floorSlider').value = String(floor);
+  $('floorLabel').textContent = `${floor}층`;
+  markPicked();
+  redrawHeatmap();
+  writeUrl();
+  if (state.viewMode) enterViewMode();
+}
+
+// ────────────────────────────────────────────────────────────
+// 10. 3D 화면에서 동을 직접 클릭해 선택
+// ────────────────────────────────────────────────────────────
+const pickRay = new THREE.Raycaster();
+let downAt = null;
+
+canvas.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt) return;
+  // 화면을 돌리려고 드래그한 경우는 선택으로 치지 않는다
+  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
+  downAt = null;
+  if (moved > 5 || state.viewMode) return;
+
+  const r = canvas.getBoundingClientRect();
+  pickRay.setFromCamera(new THREE.Vector2(
+    ((e.clientX - r.left) / r.width) * 2 - 1,
+    -((e.clientY - r.top) / r.height) * 2 + 1,
+  ), camera);
+
+  const hit = pickRay.intersectObjects([towersGroup], true)[0];
+  if (!hit) return;
+
+  // 맞은 메시가 어느 동의 몇 호 날개인지 거슬러 올라간다
+  let obj = hit.object;
+  while (obj && obj.userData.ho === undefined) obj = obj.parent;
+  if (!obj) return;
+  const tower = obj.parent;
+  if (!tower || !tower.userData.id) return;
+
+  // 클릭한 높이를 층으로 환산
+  const b = BUILDINGS.find((x) => x.id === tower.userData.id);
+  const topFloor = (b.stepTop && b.stepTop[obj.userData.ho]) || b.floors;
+  const floor = Math.min(topFloor, Math.max(2, Math.round(hit.point.y / FLOOR_HEIGHT) + 1));
+  selectUnit(tower.userData.id, obj.userData.ho, floor);
+});
+
+// ────────────────────────────────────────────────────────────
+// 11. 🎓 학습 모드 — 위도와 자전축 기울기를 바꿔본다
+// ────────────────────────────────────────────────────────────
+const REAL_LAT = SITE_LOCATION.lat;
+
+function updateLearnInfo() {
+  const lat = OBSERVER.lat, tilt = OBSERVER.obliquity;
+  $('latLabel').textContent = `${lat.toFixed(1)}°`;
+  $('tiltLabel').textContent = `${tilt.toFixed(1)}°`;
+
+  // 하지·동지 정오의 태양 고도 (남중고도 = 90 − |위도 − 적위|)
+  const noon = (dec) => 90 - Math.abs(lat - dec);
+  const summer = noon(tilt), winter = noon(-tilt);
+
+  let msg;
+  if (tilt < 1) {
+    msg = '자전축이 <b>거의 서 있어서 계절이 사라졌습니다.</b> 하지와 동지의 태양 높이가 같아집니다.';
+  } else if (Math.abs(lat) >= 90 - tilt) {
+    msg = '극권 안쪽입니다. <b>백야와 극야</b>가 나타납니다.';
+  } else if (tilt > 35) {
+    msg = '기울기가 커서 <b>계절 차이가 극단적</b>입니다. 여름과 겨울의 태양 높이 차가 벌어집니다.';
+  } else {
+    msg = '기울어진 자전축 때문에 <b>여름엔 해가 높고 겨울엔 낮아집니다.</b> 이것이 계절의 원인입니다.';
+  }
+
+  $('learnInfo').innerHTML =
+    `하지 정오 <b>${summer.toFixed(1)}°</b> · 동지 정오 <b>${winter.toFixed(1)}°</b> ` +
+    `<span class="gap">(차이 ${(summer - winter).toFixed(1)}°)</span><br>${msg}`;
+
+  // 실제 조건이 아니면 분석 수치를 실제로 오해하지 않도록 표시해 둔다
+  const off = Math.abs(lat - REAL_LAT) > 0.05 || Math.abs(tilt - OBSERVER.REAL_OBLIQUITY) > 0.05;
+  $('learnBadge').classList.toggle('hidden', !off);
+}
+
+function applyLearn() {
+  updateLearnInfo();
+  updateSunPath();
+  updateSun();
+  heatData = null;                       // 조건이 바뀌었으니 히트맵은 다시 계산해야 한다
+  $('heatBox').classList.add('hidden');
+}
+
+$('latSlider').addEventListener('input', (e) => { OBSERVER.lat = +e.target.value; applyLearn(); });
+$('tiltSlider').addEventListener('input', (e) => { OBSERVER.obliquity = +e.target.value; applyLearn(); });
+document.querySelectorAll('.lat-preset').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    OBSERVER.lat = +btn.dataset.lat;
+    $('latSlider').value = OBSERVER.lat;
+    applyLearn();
+  });
+});
+$('learnReset').addEventListener('click', () => {
+  OBSERVER.lat = REAL_LAT;
+  OBSERVER.obliquity = OBSERVER.REAL_OBLIQUITY;
+  $('latSlider').value = REAL_LAT;
+  $('tiltSlider').value = OBSERVER.REAL_OBLIQUITY;
+  applyLearn();
+});
+
+// ────────────────────────────────────────────────────────────
+// 12. 주소(URL)로 상태 공유
+// ────────────────────────────────────────────────────────────
+function writeUrl() {
+  const p = new URLSearchParams({
+    b: $('bldSelect').value, h: $('hoSelect').value, f: $('floorSlider').value,
+    d: state.date, t: state.hour.toFixed(2), n: $('northSlider').value, p2: $('p2Slider').value,
+  });
+  if (state.viewMode) p.set('v', '1');
+  if (Math.abs(OBSERVER.lat - REAL_LAT) > 0.05) p.set('lat', OBSERVER.lat.toFixed(1));
+  if (Math.abs(OBSERVER.obliquity - OBSERVER.REAL_OBLIQUITY) > 0.05) p.set('tilt', OBSERVER.obliquity.toFixed(1));
+  history.replaceState(null, '', '#' + p.toString());
+}
+
+function readUrl() {
+  if (!location.hash || location.hash.length < 2) return false;
+  const p = new URLSearchParams(location.hash.slice(1));
+  const set = (id, key) => { if (p.has(key)) $(id).value = p.get(key); };
+
+  if (p.has('lat')) { OBSERVER.lat = +p.get('lat'); $('latSlider').value = OBSERVER.lat; }
+  if (p.has('tilt')) { OBSERVER.obliquity = +p.get('tilt'); $('tiltSlider').value = OBSERVER.obliquity; }
+  if (p.has('d')) { state.date = p.get('d'); $('dateInput').value = state.date; }
+  if (p.has('t')) {
+    state.hour = +p.get('t');
+    $('timeSlider').value = state.hour;
+    $('timeLabel').textContent = formatHour(state.hour);
+  }
+  set('northSlider', 'n'); set('p2Slider', 'p2');
+
+  siteGroup.rotation.y = THREE.MathUtils.degToRad(+$('northSlider').value);
+  $('northLabel').textContent = `${$('northSlider').value}°`;
+  if (p.has('p2')) { $('p2Label').textContent = `${$('p2Slider').value}층`; buildPhase2(+$('p2Slider').value); }
+
+  document.querySelectorAll('.preset[data-date]').forEach((el) => el.classList.toggle('on', el.dataset.date === state.date));
+
+  if (p.has('b')) {
+    $('bldSelect').value = p.get('b');
+    syncBuilding();
+    if (p.has('h')) $('hoSelect').value = p.get('h');
+    if (p.has('f')) { $('floorSlider').value = p.get('f'); $('floorLabel').textContent = `${p.get('f')}층`; }
+    markPicked();
+  }
+  updateLearnInfo();
+  if (p.get('v') === '1') setTimeout(enterViewMode, 0);
+  return true;
+}
+
+$('shareBtn').addEventListener('click', async () => {
+  writeUrl();
+  try {
+    await navigator.clipboard.writeText(location.href);
+    $('shareBtn').textContent = '✅ 주소를 복사했습니다';
+  } catch {
+    $('shareBtn').textContent = '주소창의 링크를 복사하세요';
+  }
+  setTimeout(() => { $('shareBtn').textContent = '🔗 이 화면 링크 복사'; }, 2000);
+});
+
+// 같은 탭에 공유 링크를 붙여넣었을 때도 반영되게 한다
+// (writeUrl 은 replaceState 라 hashchange 를 일으키지 않으므로 무한 반복 걱정은 없다)
+addEventListener('hashchange', () => {
+  if (state.viewMode) exitViewMode();
+  if (readUrl()) { updateSunPath(); updateSun(); }
+});
+
+// 상태가 바뀔 때마다 주소를 갱신 (연속 조작 중엔 몰아서)
+let urlTimer = null;
+const queueUrl = () => { clearTimeout(urlTimer); urlTimer = setTimeout(writeUrl, 400); };
+['bldSelect', 'hoSelect', 'floorSlider', 'dateInput', 'timeSlider', 'northSlider', 'p2Slider',
+ 'latSlider', 'tiltSlider'].forEach((id) => {
+  $(id).addEventListener('change', queueUrl);
+  $(id).addEventListener('input', queueUrl);
+});
+
+// ────────────────────────────────────────────────────────────
+// 13. 렌더 루프
 // ────────────────────────────────────────────────────────────
 let last = performance.now();
 function animate(now) {
@@ -499,13 +746,19 @@ function animate(now) {
   renderer.render(scene, camera);
 }
 
+readUrl();                       // 공유 링크로 들어왔으면 그 상태로 복원
 $('timeLabel').textContent = formatHour(state.hour);
+updateLearnInfo();
 updateSunPath();
 updateSun();
 requestAnimationFrame(animate);
 
 // 디버깅용
-window.__app = { scene, camera, controls, state, towerMap, siteGroup, updateSun };
+window.__app = {
+  scene, camera, controls, state, towerMap, siteGroup, updateSun,
+  get heatCells() { return heatCells; },
+  get heatData() { return heatData; },
+};
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
