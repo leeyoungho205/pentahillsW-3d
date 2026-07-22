@@ -245,7 +245,7 @@ export function createCompass() {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-    s.scale.set(48, 48, 1);
+    s.scale.set(56, 56, 1);
     s.position.set(x, 40, z);
     group.add(s);
   });
@@ -253,22 +253,22 @@ export function createCompass() {
   return group;
 }
 
-/** 동 번호 라벨 */
+/** 동 번호 라벨 — 기본 줌에서도 글자가 또렷하게 읽히도록 크게 */
 export function createBuildingLabel(text, height, dim = false) {
   const c = document.createElement('canvas');
-  c.width = 256; c.height = 128;
+  c.width = 320; c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = dim ? 'rgba(40,46,60,0.72)' : 'rgba(20,26,38,0.88)';
-  g.roundRect(24, 34, 208, 60, 14); g.fill();
-  g.fillStyle = dim ? '#c8cede' : '#ffffff';
-  g.font = 'bold 46px sans-serif';
+  g.fillStyle = dim ? 'rgba(40,46,60,0.78)' : 'rgba(20,26,38,0.90)';
+  g.roundRect(16, 28, 288, 72, 16); g.fill();
+  g.fillStyle = dim ? '#d0d6e4' : '#ffffff';
+  g.font = 'bold 52px sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(text, 128, 64);
+  g.fillText(text, 160, 64);
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-  s.scale.set(38, 19, 1);
-  s.position.y = height + 18;
+  s.scale.set(52, 21, 1);
+  s.position.y = height + 22;
   return s;
 }

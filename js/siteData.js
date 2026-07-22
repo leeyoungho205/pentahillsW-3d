@@ -130,7 +130,7 @@ export const PHASE2 = [
   { id: '2차-I', px: [765.0, 892.5] },
 ];
 export const PHASE2_DEFAULTS = {
-  axis: 45, core: 13.0, floors: 48, line1: 90,
+  axis: 45, core: 13.0, floors: 5, line1: 90,   // 초기엔 최저층으로 두어 1차 일조·조망을 가리지 않게
   types: ['123A', '123B', '115A', '115B'],   // 2차 주택형은 미공개 — 중간 평형으로 가정
 };
 
