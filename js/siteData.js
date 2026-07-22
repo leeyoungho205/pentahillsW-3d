@@ -46,6 +46,24 @@ export const TERRAIN = {
 export const FLOOR_HEIGHT = 2.9;   // 층고(m)
 
 /**
+ * 피난안전구역(비거주) 층 — 동·호수 배치도에서 전 동 20층이 X로 표시됨.
+ * 3D에서는 어두운 띠로 보이고, 일조·조망·히트맵 계산에서는 빠진다.
+ */
+export const REFUGE_FLOORS = [20];
+
+/** 거주 세대가 있는 층인지 */
+export function isResidentialFloor(floor) {
+  return floor >= 2 && !REFUGE_FLOORS.includes(floor);
+}
+
+/** 피난층이면 가장 가까운 거주층으로 옮긴다 (클릭·슬라이더용) */
+export function snapAwayFromRefuge(floor, topFloor) {
+  if (!REFUGE_FLOORS.includes(floor)) return Math.min(topFloor, Math.max(2, floor));
+  if (floor + 1 <= topFloor) return floor + 1;
+  return floor - 1;
+}
+
+/**
  * 주택형별 세대(=날개) 치수
  * 배치도에서 잰 날개 크기와 맞도록, 바닥면적 ≈ 전용면적 × 1.5 로 잡고
  * 창면 폭(w)을 평형에 따라 키운 뒤 안쪽 길이(len)를 계산했다.
@@ -59,7 +77,6 @@ export const UNIT_TYPES = {
   '123A': { area: 123, w: 10.0, len: 18.5 },
   '123B': { area: 123, w: 10.0, len: 18.5 },
   '132A': { area: 132, w: 10.6, len: 18.7 },
-  '132B': { area: 132, w: 10.6, len: 18.7 },
   '137B': { area: 137, w: 10.8, len: 19.0 },
   '137C': { area: 137, w: 10.8, len: 19.0 },
   '152A': { area: 152, w: 11.6, len: 19.7 },
@@ -84,7 +101,7 @@ export const BUILDINGS = [
   { id: '103', px: [812.04, 592.33], axis:  16.07, core: 13.5, floors: 49, line1:  90,
     types: ['137B', '137C', '123A', '123A'] },
   { id: '104', px: [790.57, 720.14], axis:   4.86, core: 14.0, floors: 59, line1: 180,
-    types: ['152B', '152A', '132B', '132A'] },
+    types: ['152B', '152A', '132A', '132A'] },   // 공식 범례·평면도에 132A만 존재
   { id: '105', px: [848.94, 836.98], axis:  63.97, core: 11.0, floors: 49, line1:  90,
     types: ['115B', '115A', '84B', '84A'] },
   { id: '106', px: [897.18, 770.55], axis:  69.28, core: 11.0, floors: 49, line1:  90,
@@ -92,9 +109,9 @@ export const BUILDINGS = [
   { id: '107', px: [920.53, 685.05], axis:  47.67, core: 11.0, floors: 49, line1:  90,
     types: ['115B', '115A', '84B', '84A'] },
   { id: '108', px: [920.89, 590.90], axis:  42.53, core: 11.0, floors: 49, line1:  90,
-    types: ['115A', '115B', '84B', '84A'] },
+    types: ['115A', '115A', '84B', '84A'] },     // 1·2호 모두 115A (공식 배치도·세대수)
   { id: '109', px: [915.06, 512.97], axis:  44.37, core: 11.0, floors: 49, line1:  90,
-    types: ['115A', '115B', '84B', '84A'] },
+    types: ['115A', '115A', '84B', '84A'] },
 ];
 
 /**
@@ -132,7 +149,7 @@ export const LAKE_OUTLINE_PX = [
 /** 주택형 표시용 이름 */
 export const TYPE_NAMES = {
   '84A': '84㎡A', '84B': '84㎡B', '115A': '115㎡A', '115B': '115㎡B',
-  '123A': '123㎡A', '123B': '123㎡B', '132A': '132㎡A', '132B': '132㎡B',
+  '123A': '123㎡A', '123B': '123㎡B', '132A': '132㎡A',
   '137B': '137㎡B', '137C': '137㎡C', '152A': '152㎡A', '152B': '152㎡B',
 };
 

@@ -35,7 +35,7 @@ export const UNIT_PLACEMENT = {
   '104': [
     { ho: 1, type: '152B', tip: 27.4, wid: 12.8, lat: -2.1 },
     { ho: 2, type: '152A', tip: 25.3, wid: 13.8, lat: 2.3 },
-    { ho: 3, type: '132B', tip: 28.7, wid: 11.4, lat: 0.2 },
+    { ho: 3, type: '132A', tip: 28.7, wid: 11.4, lat: 0.2 },
     { ho: 4, type: '132A', tip: 28.6, wid: 12.9, lat: -0.4 },
   ],
   '105': [
@@ -58,13 +58,13 @@ export const UNIT_PLACEMENT = {
   ],
   '108': [
     { ho: 1, type: '115A', tip: 24.6, wid: 10.0, lat: -4.2 },
-    { ho: 2, type: '115B', tip: 19.5, wid: 10.8, lat: 0.2 },
+    { ho: 2, type: '115A', tip: 19.5, wid: 10.8, lat: 0.2 },
     { ho: 3, type: '84B', tip: 21.8, wid: 9.7, lat: 3.4 },
     { ho: 4, type: '84A', tip: 19.8, wid: 8.9, lat: 2.4 },  // *표준치수 대체
   ],
   '109': [
     { ho: 1, type: '115A', tip: 24.4, wid: 9.6, lat: -0.8 },
-    { ho: 2, type: '115B', tip: 23.5, wid: 9.6, lat: 0.6 },  // *표준치수 대체
+    { ho: 2, type: '115A', tip: 23.5, wid: 9.6, lat: 0.6 },  // *표준치수 대체
     { ho: 3, type: '84B', tip: 21.3, wid: 9.6, lat: 0.1 },
     { ho: 4, type: '84A', tip: 21.3, wid: 8.6, lat: 2.2 },
   ],
@@ -75,7 +75,7 @@ export const TYPE_COLORS = {
   '84A':  '#022e48', '84B':  '#aac3ce',
   '115A': '#0e653d', '115B': '#56bd8b',
   '123A': '#f46f20', '123B': '#fdbe6d',
-  '132A': '#7d461f', '132B': '#7d461f',
+  '132A': '#7d461f',
   '137B': '#b92a92', '137C': '#d7a2c9',
   '152A': '#ef3c47', '152B': '#f4888c',
 };

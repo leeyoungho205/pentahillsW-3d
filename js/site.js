@@ -19,7 +19,7 @@ export function createTerrain(onLoad) {
 
   new THREE.TextureLoader().load('./assets/terrain.png', (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
+    tex.anisotropy = 4;
     mat.map = tex;
     mat.needsUpdate = true;
     if (onLoad) onLoad();
@@ -147,7 +147,10 @@ export function createTrees() {
   const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshLambertMaterial({ color: 0x5c4633 }), n);
   const crown = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ color: 0x4e7f42 }), n);
   crown.castShadow = true;
-  trunk.castShadow = true;
+  // 줄기는 가늘어서 그림자에 거의 안 보이므로 제외 → 그림자 패스 부담↓ (수관 그림자는 유지)
+  trunk.castShadow = false;
+  crown.receiveShadow = false;
+  trunk.receiveShadow = false;
 
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();

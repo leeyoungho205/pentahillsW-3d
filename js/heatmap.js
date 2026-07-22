@@ -15,7 +15,7 @@
 import * as THREE from 'three';
 import { getSunPosition, sunDirectionVector, kstDate, OBSERVER } from './sun.js';
 import { getUnitAnchor } from './buildings.js';
-import { BUILDINGS, TYPE_NAMES } from './siteData.js';
+import { BUILDINGS, TYPE_NAMES, isResidentialFloor } from './siteData.js';
 
 // 10분 간격 — 세대 하나 분석(5분)보다 거칠지만 전체 비교엔 충분.
 // 폰은 계산이 느리니 15분으로 더 성글게 잡아 기다리는 시간을 줄인다.
@@ -60,11 +60,17 @@ export async function computeAllUnits(towerMap, blockers, ymd, onProgress) {
       const floors = [];
 
       // 이 라인이 해를 받을 수 있는 시각만 미리 추린다 (법선은 층과 무관하게 같다)
-      const probe = getUnitAnchor(tower, 2, ho);
+      const probe = getUnitAnchor(tower, 2, ho, 'living');
       const facing = suns.filter((s) => s.dir.dot(probe.normal) > 0.05);
 
       for (let f = 2; f <= topFloor; f++) {
-        const { position } = getUnitAnchor(tower, f, ho);
+        // 피난층(20)은 거주 세대가 아니므로 계산에서 빼고 격자에는 표시만 한다
+        if (!isResidentialFloor(f)) {
+          floors.push({ f, total: null, run: null, core: null, refuge: true });
+          continue;
+        }
+        // 일조권 검토는 거실 창 기준
+        const { position } = getUnitAnchor(tower, f, ho, 'living');
         let lit = 0, run = 0, best = 0, core = 0;
 
         for (const s of facing) {
@@ -154,6 +160,12 @@ export function drawHeatmap(canvas, data, selected) {
 
       line.floors.forEach((cell) => {
         const y = TOP + (maxFloor - cell.f) * CH;
+        if (cell.refuge) {
+          // 피난층 — 어두운 띠
+          g.fillStyle = '#2c333f';
+          g.fillRect(x + 1, y, CW - 2, CH - 1);
+          return;
+        }
         g.fillStyle = hoursToColor(cell.total);
         g.fillRect(x + 1, y, CW - 2, CH - 1);
         cells.push({ x: x + 1, y, w: CW - 2, h: CH - 1, id, ho: line.ho, floor: cell.f, cell });
@@ -184,6 +196,7 @@ export function toCSV(data) {
   Object.values(data.buildings).forEach((b) => {
     b.lines.forEach((line) => {
       line.floors.forEach((c) => {
+        if (c.refuge) return; // CSV에는 거주 세대만
         rows.push([
           b.id, `${line.ho}호`, line.typeName, c.f,
           c.total.toFixed(1), c.run.toFixed(1), c.core.toFixed(1),

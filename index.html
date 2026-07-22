@@ -68,21 +68,26 @@
           <label>동 <select id="bldSelect"></select></label>
           <label>호수 <span class="sel-wrap"><i class="swatch" id="hoSwatch"></i><select id="hoSelect"></select></span></label>
         </div>
-        <label class="slider-label">층 <b id="floorLabel">20층</b></label>
-        <input type="range" id="floorSlider" min="2" max="59" step="1" value="20">
+        <label class="slider-label">층 <b id="floorLabel">21층</b></label>
+        <input type="range" id="floorSlider" min="2" max="59" step="1" value="21">
+        <label class="slider-label">조망·일조 창</label>
+        <div class="preset-row" id="roomRow">
+          <button type="button" data-room="living" class="preset on">거실</button>
+          <button type="button" data-room="master" class="preset">안방</button>
+        </div>
         <div class="row two">
           <button id="viewBtn">👁 조망 보기</button>
           <button id="analyzeBtn">📊 일조 분석</button>
         </div>
         <button id="compareBtn" class="wide">⚖️ 이 층 1~4호 한번에 비교</button>
         <button id="backBtn" class="wide ghost hidden">↩ 단지 전체 보기로</button>
-        <p class="hint tip">💡 3D 화면에서 동을 <b>직접 클릭</b>해도 그 세대가 선택됩니다.</p>
+        <p class="hint tip">💡 3D에서 동을 클릭해도 선택됩니다. <b>20층은 피난구역</b>이라 건너뜁니다.</p>
       </section>
 
       <section>
         <h2>🔥 전 세대 일조 히트맵</h2>
         <p class="hint">
-          1차 9개 동의 <b>모든 세대</b>를 한 번에 계산해서 층·호수별 일조 시간을 격자로 보여줍니다.
+          1차 9개 동의 <b>모든 거주 세대</b>를 거실 창 기준으로 계산합니다 (20층 피난구역 제외).
           칸을 누르면 그 세대로 이동합니다.
         </p>
         <button id="heatBtn" class="wide">📊 전 세대 계산하기</button>
