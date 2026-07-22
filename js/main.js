@@ -60,6 +60,15 @@ let needsRender = true;
 let lastShadowBake = 0;
 function requestRender() { needsRender = true; }
 
+/**
+ * 그림자 맵을 다음 프레임에 다시 굽도록 표시한다.
+ * autoUpdate=false 일 때는 light.shadow 가 아니라 renderer.shadowMap.needsUpdate 를 써야 한다.
+ */
+function markShadowsDirty() {
+  renderer.shadowMap.needsUpdate = true;
+  requestRender();
+}
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fb6dd);
 scene.fog = new THREE.Fog(0x8fb6dd, 2200, 6500);   // 단지는 또렷하게, 먼 산만 흐리게
@@ -165,8 +174,7 @@ function buildPhase2(floors) {
     label.position.x = p.x; label.position.z = p.z;
     phase2Labels.add(label);
   });
-  sunLight.shadow.needsUpdate = true;
-  requestRender();
+  markShadowsDirty();
 }
 buildPhase2(PHASE2_DEFAULTS.floors);
 
@@ -219,7 +227,7 @@ function updateSun(opts = {}) {
   // 하루 재생 중엔 그림자 맵을 ~10fps만 다시 구워도 육안 차이 거의 없음
   const now = performance.now();
   if (forceShadow || now - lastShadowBake >= 100) {
-    sunLight.shadow.needsUpdate = true;
+    renderer.shadowMap.needsUpdate = true;
     lastShadowBake = now;
   }
   requestRender();
@@ -412,8 +420,7 @@ $('northSlider').addEventListener('input', (e) => {
   siteGroup.rotation.y = THREE.MathUtils.degToRad(+e.target.value);
   $('northLabel').textContent = `${e.target.value}°`;
   // 단지 회전 → 월드 기준 그림자 캐스터 위치가 바뀌므로 맵을 다시 굽는다
-  sunLight.shadow.needsUpdate = true;
-  requestRender();
+  markShadowsDirty();
   if (state.viewMode) enterViewMode();
 });
 
@@ -428,16 +435,14 @@ $('p2Slider').addEventListener('input', (e) => {
 $('chkPlan').addEventListener('change', (e) => { planOverlay.visible = e.target.checked; requestRender(); });
 $('chkTree').addEventListener('change', (e) => {
   trees.visible = e.target.checked;
-  sunLight.shadow.needsUpdate = true;
-  requestRender();
+  markShadowsDirty();
 });
 $('chkPath').addEventListener('change', (e) => { if (sunPathLine) sunPathLine.visible = e.target.checked; requestRender(); });
 $('chkLabel').addEventListener('change', (e) => { labelsGroup.visible = e.target.checked; requestRender(); });
 $('chkType').addEventListener('change', updateHoSwatch);
 $('chkP2').addEventListener('change', (e) => {
   phase2Group.visible = e.target.checked;
-  sunLight.shadow.needsUpdate = true;
-  requestRender();
+  markShadowsDirty();
 });
 
 $('panelToggle').addEventListener('click', () => {
