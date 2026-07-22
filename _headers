@@ -1,0 +1,9 @@
+# Cloudflare Pages — 서비스 워커·첫 화면은 CDN에 오래 묶지 않는다
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/index.html
+  Cache-Control: no-cache
+
+/
+  Cache-Control: no-cache

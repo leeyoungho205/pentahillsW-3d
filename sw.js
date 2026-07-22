@@ -1,15 +1,15 @@
 /**
  * 서비스 워커 — 폰에서 앱처럼 쓰기 위한 오프라인 캐시
  *
- * 처음 한 번 열어두면 필요한 파일(3D 라이브러리·지형 이미지·코드)이 전부 저장돼서
- * 그다음부터는 **인터넷 없이도** 열린다. 모델하우스나 현장처럼 신호가 약한 곳에서 특히 쓸모 있다.
- *
- * VERSION 은 배포할 때마다 새 값으로 바뀐다(배포 명령이 __BUILD__ 를 치환).
- * 값이 바뀌면 브라우저가 이 파일이 달라진 걸 알아채고 새 캐시를 받는다.
+ * VERSION 은 배포할 때마다 새 값으로 바뀐다.
+ * - Cloudflare Pages: 빌드 명령이 __BUILD__ → 커밋 SHA 로 치환
+ * - ./deploy.sh: 시각 문자열로 치환
+ * 값이 바뀌면 새 캐시 이름으로 갈아타고 옛 캐시를 지운다.
  */
 
 const VERSION = '__BUILD__';
-const CACHE = `pentahills-${VERSION}`;
+// v3 접두사: 예전 pentahills-__BUILD__ 캐시를 한 번에 비우기 위함
+const CACHE = `pentahills-v3-${VERSION}`;
 
 // 앱이 켜지는 데 필요한 파일 전부
 const SHELL = [
@@ -35,11 +35,25 @@ const SHELL = [
   './assets/icons/apple-touch-icon.png',
 ];
 
+/** HTML·JS·CSS 등 앱 코드인지 — 배포 후 바로 새 파일을 받도록 네트워크 우선 */
+function isAppCode(url) {
+  const path = url.pathname;
+  return (
+    path.endsWith('.html') ||
+    path.endsWith('.js') ||
+    path.endsWith('.css') ||
+    path.endsWith('.json') ||
+    path === '/' ||
+    path.endsWith('/')
+  );
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE)
       // 파일 하나가 실패해도 설치 전체가 무산되지 않게 하나씩 담는다
       .then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => null))))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -53,25 +67,48 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  if (req.method !== 'GET') return;
 
-  e.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req)
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  // sw.js 는 브라우저가 주기적으로 다시 받도록 가로채지 않는다
+  if (url.pathname.endsWith('/sw.js')) return;
+
+  // 앱 코드·문서: 네트워크 우선 → 실패 시에만 캐시 (구버전 고착 방지)
+  if (req.mode === 'navigate' || isAppCode(url)) {
+    e.respondWith(
+      fetch(req)
         .then((res) => {
-          // 새로 받은 것도 캐시에 넣어 다음엔 오프라인에서 쓸 수 있게 한다
           if (res.ok) {
             const copy = res.clone();
             caches.open(CACHE).then((c) => c.put(req, copy));
           }
           return res;
         })
-        .catch(() => {
-          // 오프라인인데 캐시에도 없으면, 페이지 요청은 첫 화면으로 대신 응답
-          if (req.mode === 'navigate') return caches.match('./index.html');
-          return new Response('', { status: 504 });
-        });
+        .catch(() =>
+          caches.match(req).then((hit) => {
+            if (hit) return hit;
+            if (req.mode === 'navigate') return caches.match('./index.html');
+            return new Response('', { status: 504 });
+          })
+        )
+    );
+    return;
+  }
+
+  // 이미지·벤더 등: 캐시 우선 (용량·오프라인)
+  e.respondWith(
+    caches.match(req).then((hit) => {
+      if (hit) return hit;
+      return fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => new Response('', { status: 504 }));
     })
   );
 });

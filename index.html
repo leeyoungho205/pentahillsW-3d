@@ -196,23 +196,40 @@
     // 서비스 워커 등록 — 한 번 열어두면 오프라인에서도 실행된다
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       addEventListener('load', () => {
+        let isReloading = false;
+        // 새 워커가 제어권을 받으면 한 번만 새로고침 (구 캐시 화면에서 탈출)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (isReloading) return;
+          isReloading = true;
+          location.reload();
+        });
+
         navigator.serviceWorker.register('./sw.js').then((reg) => {
-          // 새 버전이 대기 중이면 사용자에게 알린다 (자동으로 바꾸면 쓰던 화면이 끊긴다)
-          const notify = (w) => {
-            if (!w) return;
-            w.addEventListener('statechange', () => {
-              if (w.state === 'installed' && navigator.serviceWorker.controller) {
-                document.getElementById('updateBar').classList.remove('hidden');
+          const showUpdateBar = () => {
+            document.getElementById('updateBar').classList.remove('hidden');
+          };
+          const notify = (worker) => {
+            if (!worker) return;
+            worker.addEventListener('statechange', () => {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                showUpdateBar();
               }
             });
           };
-          if (reg.waiting) document.getElementById('updateBar').classList.remove('hidden');
+          if (reg.waiting) showUpdateBar();
           reg.addEventListener('updatefound', () => notify(reg.installing));
 
           document.getElementById('updateBtn').addEventListener('click', () => {
             if (reg.waiting) reg.waiting.postMessage('skipWaiting');
-            setTimeout(() => location.reload(), 300);
+            else location.reload();
           });
+
+          // 탭이 다시 보일 때·주기적으로 새 sw.js 확인 (엣지 등 긴 캐시 대응)
+          const checkForUpdate = () => { reg.update().catch(() => {}); };
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdate();
+          });
+          setInterval(checkForUpdate, 60 * 1000);
         }).catch(() => {});
       });
     }
