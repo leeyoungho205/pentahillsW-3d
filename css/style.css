@@ -12,15 +12,32 @@
 }
 
 html, body {
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;          /* 폰 주소창이 접혔다 펴져도 화면이 튀지 않게 */
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-#scene { display: block; width: 100%; height: 100%; }
+/* touch-action: none 이라야 3D를 돌릴 때 페이지가 같이 스크롤되지 않는다 */
+#scene { display: block; width: 100%; height: 100%; touch-action: none; }
+
+/* 새 버전 알림 띠 */
+#updateBar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  top: calc(8px + env(safe-area-inset-top)); z-index: 60;
+  background: var(--accent); color: #22293a; font-size: 12px; font-weight: 600;
+  padding: 7px 10px 7px 14px; border-radius: 999px;
+  display: flex; align-items: center; gap: 8px;
+}
+#updateBar button {
+  background: #22293a; color: #fff; border: 0; padding: 4px 10px;
+  border-radius: 999px; font-size: 11px; font-weight: 600;
+}
 
 /* ===== 로딩 ===== */
 #loading {
@@ -234,16 +251,55 @@ button.ghost { background: transparent; color: var(--dim); }
 .hidden { display: none !important; }
 
 /* ===== 모바일 대응 ===== */
+/* ===== 폰 (아래에서 끌어올리는 시트 형태) ===== */
 @media (max-width: 720px) {
-  #panel { left: 8px; right: 8px; width: auto; top: auto; bottom: 8px; height: 52vh; }
-  #topbar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; }
+  #topbar {
+    flex-direction: column; align-items: flex-start; gap: 5px;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  }
   #topbar h1 { font-size: 14px; }
   #topbar h1 span { display: block; margin: 2px 0 0; }
-  #panel.collapsed { transform: translateY(calc(100% + 20px)); }
-  #panelToggle { right: 14px; top: -14px; }
-  #panel.collapsed #panelToggle { right: 14px; top: -34px; }
-  #viewBadge { bottom: auto; top: 96px; font-size: 12px; }
-  /* 좁은 화면에서는 패널이 아래를 쓰므로 히트맵은 위쪽에 띄운다 */
-  #heatBox { left: 8px; right: 8px; top: 92px; bottom: auto; max-height: 42vh; }
-  .heat-head { flex-wrap: wrap; }
+  .chip { font-size: 10px; padding: 3px 8px; }
+
+  /* 패널을 바텀시트로 — 기본은 손잡이만 보이고, 올리면 펼쳐진다 */
+  #panel {
+    left: 0; right: 0; width: auto; top: auto; border-radius: 18px 18px 0 0;
+    bottom: 0; height: 62dvh; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transition: transform .28s cubic-bezier(.32,.72,0,1);
+  }
+  .panel-inner { padding: 18px 14px calc(16px + env(safe-area-inset-bottom)); }
+
+  /* 접었을 때 손잡이 높이만 남긴다 */
+  #panel.collapsed { transform: translateY(calc(100% - 34px)); }
+
+  #panelToggle {
+    right: auto; left: 50%; top: 0; transform: translateX(-50%);
+    width: 100%; height: 34px; border-radius: 18px 18px 0 0;
+    border: 0; background: transparent; font-size: 0;
+  }
+  /* 손잡이 막대 */
+  #panelToggle::before {
+    content: ''; position: absolute; left: 50%; top: 13px; transform: translateX(-50%);
+    width: 42px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.4);
+  }
+  #panel.collapsed #panelToggle { right: auto; left: 50%; top: 0; }
+
+  #viewBadge {
+    bottom: auto; top: calc(84px + env(safe-area-inset-top));
+    font-size: 11px; padding: 7px 14px;
+    max-width: calc(100vw - 16px); overflow: hidden; text-overflow: ellipsis;
+  }
+  /* 패널이 아래를 쓰므로 히트맵은 위쪽에 띄운다 */
+  #heatBox {
+    left: 6px; right: 6px; top: calc(84px + env(safe-area-inset-top));
+    bottom: auto; max-height: 46dvh; padding: 10px;
+  }
+  .heat-head { flex-wrap: wrap; gap: 6px; }
+  .heat-legend { width: 100%; order: 3; }
+  #typeLegend { grid-template-columns: 1fr; }
+  .row.two { flex-direction: column; }
+  button { padding: 11px 10px; }        /* 손가락으로 누르기 좋게 */
+  input[type=range] { height: 6px; }
+  input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; }
 }

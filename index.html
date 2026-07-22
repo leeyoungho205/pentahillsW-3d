@@ -2,14 +2,26 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>펜타힐즈 더블유 3D 일조·조망 시뮬레이터</title>
+
+  <!-- 폰 홈 화면에 앱처럼 설치되도록 -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0d1220">
+  <link rel="icon" href="./assets/icons/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="펜타힐즈 3D">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <link rel="stylesheet" href="./css/style.css">
+  <!-- three.js 를 CDN이 아니라 저장소에 함께 두어 오프라인에서도 열리게 한다 -->
   <script type="importmap">
   {
     "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
     }
   }
   </script>
@@ -170,6 +182,35 @@
     <div class="heat-scroll"><canvas id="heatCanvas"></canvas></div>
   </div>
 
+  <!-- 새 버전이 배포됐을 때 알려주는 띠 -->
+  <div id="updateBar" class="hidden">새 버전이 있습니다 <button id="updateBtn">새로고침</button></div>
+
   <script type="module" src="./js/main.js"></script>
+
+  <script>
+    // 서비스 워커 등록 — 한 번 열어두면 오프라인에서도 실행된다
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          // 새 버전이 대기 중이면 사용자에게 알린다 (자동으로 바꾸면 쓰던 화면이 끊긴다)
+          const notify = (w) => {
+            if (!w) return;
+            w.addEventListener('statechange', () => {
+              if (w.state === 'installed' && navigator.serviceWorker.controller) {
+                document.getElementById('updateBar').classList.remove('hidden');
+              }
+            });
+          };
+          if (reg.waiting) document.getElementById('updateBar').classList.remove('hidden');
+          reg.addEventListener('updatefound', () => notify(reg.installing));
+
+          document.getElementById('updateBtn').addEventListener('click', () => {
+            if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+            setTimeout(() => location.reload(), 300);
+          });
+        }).catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

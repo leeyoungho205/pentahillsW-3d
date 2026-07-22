@@ -17,7 +17,10 @@ import { getSunPosition, sunDirectionVector, kstDate, OBSERVER } from './sun.js'
 import { getUnitAnchor } from './buildings.js';
 import { BUILDINGS, TYPE_NAMES } from './siteData.js';
 
-const STEP = 10 / 60;          // 10분 간격 — 세대 하나 분석(5분)보다 거칠지만 전체 비교엔 충분
+// 10분 간격 — 세대 하나 분석(5분)보다 거칠지만 전체 비교엔 충분.
+// 폰은 계산이 느리니 15분으로 더 성글게 잡아 기다리는 시간을 줄인다.
+const IS_PHONE = matchMedia('(max-width: 720px), (pointer: coarse)').matches;
+const STEP = (IS_PHONE ? 15 : 10) / 60;
 
 /** 하루치 태양 방향을 미리 계산해 둔다 */
 function daySunDirections(ymd) {
