@@ -18,7 +18,7 @@
 
 import * as THREE from 'three';
 import { FLOOR_HEIGHT, UNIT_TYPES } from './siteData.js';
-import { UNIT_PLACEMENT } from './unitData.js';
+import { UNIT_PLACEMENT, TYPE_COLORS } from './unitData.js';
 
 /** 층마다 창이 반복되는 외벽 텍스처 */
 function makeFacadeTexture(repeatX, repeatY) {
@@ -39,13 +39,36 @@ function makeFacadeTexture(repeatX, repeatY) {
   return tex;
 }
 
-function makeBox(w, h, d, floors, roofColor = 0xb5b2ab) {
+const PLAIN_WALL = 0xffffff;   // 색상 표시를 껐을 때의 외벽(텍스처 원색)
+const PLAIN_ROOF = 0xb5b2ab;
+
+/**
+ * 평형 색을 외벽에 입힐 때 쓰는 색
+ * 범례 색을 그대로 곱하면 창문이 안 보일 만큼 어두워져서 흰색을 22%만 섞는다.
+ *
+ * 주의: THREE.Color.lerp 는 선형 색공간에서 섞어서 눈에 보이는 것보다 훨씬 밝아진다.
+ *       (#022e48 을 30% 섞으면 회색이 되어버린다) 그래서 sRGB 값에서 직접 섞는다.
+ */
+function wallTint(type) {
+  const hex = TYPE_COLORS[type] || '#ffffff';
+  const ch = (i) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  const mix = (v) => Math.round(v + (255 - v) * 0.22);
+  return new THREE.Color(`rgb(${mix(ch(0))},${mix(ch(1))},${mix(ch(2))})`);
+}
+
+function makeBox(w, h, d, floors, type = null) {
   const geo = new THREE.BoxGeometry(w, h, d);
-  const sideX = new THREE.MeshLambertMaterial({ map: makeFacadeTexture(Math.max(1, Math.round(d / 5)), floors) });
-  const sideZ = new THREE.MeshLambertMaterial({ map: makeFacadeTexture(Math.max(1, Math.round(w / 5)), floors) });
-  const roof = new THREE.MeshLambertMaterial({ color: roofColor });
+  const tint = type ? wallTint(type) : new THREE.Color(PLAIN_WALL);
+  const roofCol = type ? new THREE.Color(TYPE_COLORS[type]) : new THREE.Color(PLAIN_ROOF);
+
+  const sideX = new THREE.MeshLambertMaterial({ map: makeFacadeTexture(Math.max(1, Math.round(d / 5)), floors), color: tint });
+  const sideZ = new THREE.MeshLambertMaterial({ map: makeFacadeTexture(Math.max(1, Math.round(w / 5)), floors), color: tint });
+  const roof = new THREE.MeshLambertMaterial({ color: roofCol });
+
   const mesh = new THREE.Mesh(geo, [sideX, sideX, roof, roof, sideZ, sideZ]);
   mesh.castShadow = true; mesh.receiveShadow = true;
+  // 색상 표시를 켜고 끌 수 있도록 두 가지 색을 기억해 둔다
+  mesh.userData.palette = { type, tint, roofCol };
   return mesh;
 }
 
@@ -68,8 +91,10 @@ export function createTower(cfg) {
   const h = cfg.floors * FLOOR_HEIGHT;
   const core = cfg.core;
   const tips = [];   // 날개별 창면까지 거리 — 조망·일조 계산에 쓰인다
+  const wingMeshes = [];
+  const wingTypes = [];
 
-  // 1) 코어
+  // 1) 코어 (평형이 없는 공용부라 색을 입히지 않는다)
   const coreBox = makeBox(core, h, core, cfg.floors);
   coreBox.position.y = h / 2;
   group.add(coreBox);
@@ -97,7 +122,8 @@ export function createTower(cfg) {
     const angle = i * Math.PI / 2;
     const dist = core / 2 + wingLen / 2;
     const isX = i % 2 === 0;                 // 짝수 라인은 X축, 홀수는 Z축으로 뻗음
-    const wing = makeBox(isX ? wingLen : wingW, wh, isX ? wingW : wingLen, topFloor);
+    const type = cfg.types[ho - 1];
+    const wing = makeBox(isX ? wingLen : wingW, wh, isX ? wingW : wingLen, topFloor, type);
     // 축 방향으로 dist, 옆으로 lat 만큼 밀어서 배치도상 실제 위치에 맞춘다
     wing.position.set(
       Math.cos(angle) * dist - Math.sin(angle) * lat,
@@ -105,6 +131,9 @@ export function createTower(cfg) {
       Math.sin(angle) * dist + Math.cos(angle) * lat
     );
     wing.userData.wingIndex = i;
+    wing.userData.ho = ho;
+    wingMeshes[i] = wing;
+    wingTypes[i] = type;
     group.add(wing);
   }
 
@@ -119,8 +148,48 @@ export function createTower(cfg) {
 
   group.position.set(cfg.x, 0, cfg.z);
   group.rotation.y = -THREE.MathUtils.degToRad(cfg.axis);   // 배치도 각도 → 3D 회전
-  group.userData = { ...cfg, height: h, tips, widths, lats };
+  group.userData = { ...cfg, height: h, tips, widths, lats, wingMeshes, wingTypes };
   return group;
+}
+
+/**
+ * 평형별 색상 표시 켜기/끄기
+ * 켜면 배치도 범례와 똑같은 색이 각 날개(세대)에 입혀져서
+ * 어느 블록이 어떤 평형인지 3D에서 바로 보인다.
+ */
+export function setTypeColorMode(tower, on) {
+  (tower.userData.wingMeshes || []).forEach((wing) => {
+    if (!wing) return;
+    const p = wing.userData.palette;
+    wing.material.forEach((m, idx) => {
+      // BoxGeometry 재질 순서: +X, -X, +Y(지붕), -Y, +Z, -Z
+      const isRoof = idx === 2 || idx === 3;
+      if (isRoof) m.color.copy(on ? p.roofCol : new THREE.Color(PLAIN_ROOF));
+      else m.color.copy(on ? p.tint : new THREE.Color(PLAIN_WALL));
+    });
+  });
+}
+
+/**
+ * 선택한 호수의 날개에 테두리를 둘러 어디인지 바로 알아보게 한다
+ * @param {number|null} ho - null이면 강조 해제
+ */
+export function highlightWing(tower, ho) {
+  const old = tower.getObjectByName('wingHighlight');
+  if (old) { old.geometry.dispose(); old.material.dispose(); tower.remove(old); }
+  if (ho == null) return;
+
+  const wing = tower.userData.wingMeshes[hoToWingIndex(tower.userData, ho)];
+  if (!wing) return;
+
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(wing.geometry),
+    new THREE.LineBasicMaterial({ color: 0xffd23d, depthTest: false, transparent: true, opacity: 0.95 })
+  );
+  edges.position.copy(wing.position);
+  edges.renderOrder = 999;
+  edges.name = 'wingHighlight';
+  tower.add(edges);
 }
 
 /**

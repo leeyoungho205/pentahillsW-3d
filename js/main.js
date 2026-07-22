@@ -21,7 +21,10 @@ import {
   NORTH_OFFSET_DEG, TYPE_NAMES, px2m,
 } from './siteData.js';
 import { getSunPosition, sunDirectionVector, kstDate, findSunriseSunset, formatHour } from './sun.js';
-import { createTower, getUnitAnchor, createWindowFrame, placeWindowFrame } from './buildings.js';
+import {
+  createTower, getUnitAnchor, createWindowFrame, placeWindowFrame,
+  setTypeColorMode, highlightWing,
+} from './buildings.js';
 import { UNIT_PLACEMENT, TYPE_COLORS } from './unitData.js';
 import {
   createTerrain, createPlanOverlay, createOuterGround, createLake, animateLake,
@@ -120,6 +123,8 @@ function buildPhase2(floors) {
   PHASE2.forEach((b) => {
     const p = px2m(b.px[0], b.px[1]);
     const t = createTower({ ...PHASE2_DEFAULTS, ...b, floors, x: p.x, z: p.z });
+    // 2차는 주택형이 공개되지 않은 추정값이라, 평형 색을 입히지 않고 중립색으로 둔다
+    setTypeColorMode(t, false);
     phase2Group.add(t);
     const label = createBuildingLabel(`${b.id} · ${floors}F`, t.userData.height, true);
     label.position.x = p.x; label.position.z = p.z;
@@ -213,12 +218,54 @@ function syncBuilding() {
   updateHoSwatch();
 }
 
-/** 선택한 호수의 평형 색(배치도 범례 색)을 칩으로 보여준다 */
+/** 선택한 호수의 평형 색 칩 + 3D 날개 강조를 갱신 */
 function updateHoSwatch() {
   const b = BUILDINGS.find((x) => x.id === $('bldSelect').value);
-  const t = b.types[+$('hoSelect').value - 1];
+  const ho = +$('hoSelect').value;
+  const t = b.types[ho - 1];
   $('hoSwatch').style.background = TYPE_COLORS[t] || '#888';
   $('hoSwatch').title = TYPE_NAMES[t] || t;
+
+  // 선택한 호수의 날개만 테두리로 강조 (다른 동의 강조는 지운다)
+  Object.entries(towerMap).forEach(([id, tw]) => highlightWing(tw, id === b.id ? ho : null));
+
+  // 색상표에서 지금 선택된 평형을 표시
+  document.querySelectorAll('#typeLegend .legend-item').forEach((el) => {
+    el.classList.toggle('on', el.dataset.type === t);
+  });
+}
+
+/**
+ * 평형 색상표 — 배치도 범례와 같은 색.
+ * 항목을 누르면 그 평형이 있는 동·호수로 바로 이동한다.
+ */
+function buildTypeLegend() {
+  // 평형별로 "어느 동 몇 호에 있는지" 목록을 만든다
+  const where = {};
+  BUILDINGS.forEach((b) => b.types.forEach((t, i) => {
+    (where[t] = where[t] || []).push({ id: b.id, ho: i + 1 });
+  }));
+
+  const order = ['84A', '84B', '115A', '115B', '123A', '123B', '132A', '132B', '137B', '137C', '152A', '152B'];
+  $('typeLegend').innerHTML = order.filter((t) => where[t]).map((t) => {
+    const dongs = [...new Set(where[t].map((w) => w.id))].join('·');
+    return `<button class="legend-item" data-type="${t}" title="${dongs}동">
+      <i style="background:${TYPE_COLORS[t]}"></i>
+      <span class="lt">${TYPE_NAMES[t]}</span>
+      <span class="ld">${dongs}</span>
+    </button>`;
+  }).join('');
+
+  $('typeLegend').addEventListener('click', (e) => {
+    const btn = e.target.closest('.legend-item');
+    if (!btn) return;
+    const first = where[btn.dataset.type][0];      // 그 평형이 있는 첫 동·호수로 이동
+    $('bldSelect').value = first.id;
+    syncBuilding();
+    $('hoSelect').value = String(first.ho);
+    updateHoSwatch();
+    if (state.viewMode) enterViewMode();
+  });
 }
 $('bldSelect').addEventListener('change', () => { syncBuilding(); if (state.viewMode) enterViewMode(); });
 $('hoSelect').addEventListener('change', () => { updateHoSwatch(); if (state.viewMode) enterViewMode(); });
@@ -226,6 +273,7 @@ $('floorSlider').addEventListener('input', () => {
   $('floorLabel').textContent = `${$('floorSlider').value}층`;
   if (state.viewMode) enterViewMode();
 });
+buildTypeLegend();
 syncBuilding();
 
 // 날짜 · 시각
@@ -275,6 +323,9 @@ $('chkPlan').addEventListener('change', (e) => { planOverlay.visible = e.target.
 $('chkTree').addEventListener('change', (e) => { trees.visible = e.target.checked; });
 $('chkPath').addEventListener('change', (e) => { if (sunPathLine) sunPathLine.visible = e.target.checked; });
 $('chkLabel').addEventListener('change', (e) => { labelsGroup.visible = e.target.checked; });
+$('chkType').addEventListener('change', (e) => {
+  Object.values(towerMap).forEach((t) => setTypeColorMode(t, e.target.checked));
+});
 $('chkP2').addEventListener('change', (e) => { phase2Group.visible = e.target.checked; });
 
 $('panelToggle').addEventListener('click', () => {

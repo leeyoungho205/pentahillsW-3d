@@ -160,6 +160,22 @@ button.ghost { background: transparent; color: var(--dim); }
 .verdict.ok { background: rgba(95,211,154,.12); color: #8ee7bb; }
 .verdict.ng { background: rgba(255,123,123,.12); color: #ffb0b0; }
 
+/* ===== 평형 색상표 ===== */
+#typeLegend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.legend-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; font-size: 11px; text-align: left;
+  background: rgba(255,255,255,.05); border: 1px solid transparent;
+}
+.legend-item:hover { background: rgba(255,255,255,.13); }
+.legend-item.on { border-color: var(--accent); background: rgba(255,200,61,.14); }
+.legend-item i {
+  width: 13px; height: 13px; border-radius: 3px; flex: none;
+  border: 1px solid rgba(255,255,255,.35);
+}
+.legend-item .lt { flex: 1; white-space: nowrap; }
+.legend-item .ld { color: var(--dim); font-size: 10px; white-space: nowrap; }
+
 /* ===== 호수별 비교표 ===== */
 #compareBox { border-top: 1px solid var(--line); padding-top: 16px; }
 #compareTable { width: 100%; border-collapse: collapse; font-size: 11px; }
