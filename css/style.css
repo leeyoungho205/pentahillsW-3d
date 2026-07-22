@@ -82,9 +82,10 @@ html, body {
   backdrop-filter: blur(14px);
   border: 1px solid var(--line);
   border-radius: 16px;
-  transition: transform .3s ease;
+  transition: transform .32s cubic-bezier(.32, .72, 0, 1);
 }
-#panel.collapsed { transform: translateX(calc(-100% - 20px)); }
+/* 접어도 오른쪽 탭(40px)은 화면에 남겨 다시 열 수 있게 한다 */
+#panel.collapsed { transform: translateX(calc(-100% + 40px)); }
 
 .panel-inner {
   height: 100%; overflow-y: auto;
@@ -93,13 +94,81 @@ html, body {
 .panel-inner::-webkit-scrollbar { width: 6px; }
 .panel-inner::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 3px; }
 
+/* 데스크톱: 세로로 긴 둥근 사각형 탭 (전역 button 원형/패딩 스타일 덮어씀) */
 #panelToggle {
-  position: absolute; right: -14px; top: 16px;
-  width: 28px; height: 28px; border-radius: 50%;
-  background: var(--panel); border: 1px solid var(--line);
-  color: var(--text); cursor: pointer; font-size: 11px; z-index: 2;
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  left: calc(100% - 1px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  min-width: 40px;
+  height: 132px;
+  min-height: 132px;
+  margin: 0;
+  padding: 16px 0;
+  border-radius: 0 20px 20px 0; /* 오른쪽만 곡선인 세로 긴 사각형 */
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 1px solid transparent;
+  background: #161e30; /* 탭 전체에 동일한 불투명 바탕 */
+  background-image: none;
+  color: var(--text);
+  cursor: pointer;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.28);
+  transition: background .2s, color .2s, border-color .2s, box-shadow .2s;
 }
-#panel.collapsed #panelToggle { right: -38px; }
+#panelToggle:hover {
+  background: #1e2a42;
+  color: var(--accent);
+  border-color: rgba(255, 200, 61, 0.35);
+  box-shadow: 6px 0 20px rgba(0, 0, 0, 0.34);
+}
+#panelToggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.panel-toggle-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg); /* 열림 → 왼쪽(접기) */
+  transition: transform .28s ease;
+  margin: 0 0 0 2px;
+  background: none;
+}
+#panel.collapsed .panel-toggle-icon {
+  transform: rotate(-135deg); /* 접힘 → 오른쪽(펼치기) */
+  margin: 0 2px 0 0;
+}
+.panel-toggle-label {
+  display: block;
+  flex: 0 0 auto;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: inherit;
+  line-height: 1;
+  user-select: none;
+  background: none;
+}
+#panel.collapsed #panelToggle {
+  background: #2a2618;
+  border-color: rgba(255, 200, 61, 0.5);
+  border-left-color: transparent;
+  color: var(--accent);
+}
 
 section h2 { font-size: 13px; margin-bottom: 10px; letter-spacing: -.2px; }
 .hint { font-size: 11px; color: var(--dim); line-height: 1.6; margin-bottom: 10px; }
@@ -250,9 +319,99 @@ button.ghost { background: transparent; color: var(--dim); }
 
 .hidden { display: none !important; }
 
+/* ===== 조작법 · 이동 토글 (화면 오른쪽 아래) ===== */
+.controls-dock {
+  position: fixed;
+  right: 14px;
+  bottom: 16px;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.controls-dock > * { pointer-events: auto; }
+
+.controls-help {
+  width: min(220px, calc(100vw - 28px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(18, 24, 40, 0.9);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.controls-help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.controls-help-head b {
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: -0.2px;
+}
+#controlsHelpToggle {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+#controlsHelpList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#controlsHelpList li {
+  display: flex;
+  gap: 6px;
+  margin: 3px 0;
+}
+#controlsHelpList li span.key {
+  flex: 0 0 auto;
+  min-width: 4.5em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.controls-help.collapsed #controlsHelpList { display: none; }
+.controls-help.collapsed .controls-help-head { margin-bottom: 0; }
+.controls-help.collapsed { padding: 8px 10px; width: auto; }
+
+.fab-pan {
+  min-width: 72px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(18, 24, 40, 0.92);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.fab-pan[aria-pressed="true"] {
+  background: rgba(255, 200, 61, 0.28);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ===== 모바일 대응 ===== */
 /* ===== 폰 (아래에서 끌어올리는 시트 형태) ===== */
 @media (max-width: 720px) {
+  .controls-dock {
+    right: 12px;
+    bottom: calc(42px + env(safe-area-inset-bottom));
+  }
+  .controls-help { font-size: 10.5px; width: min(200px, calc(100vw - 24px)); }
+  .fab-pan { padding: 12px 14px; }
   #topbar {
     flex-direction: column; align-items: flex-start; gap: 5px;
     padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
@@ -274,16 +433,29 @@ button.ghost { background: transparent; color: var(--dim); }
   #panel.collapsed { transform: translateY(calc(100% - 34px)); }
 
   #panelToggle {
-    right: auto; left: 50%; top: 0; transform: translateX(-50%);
-    width: 100%; height: 34px; border-radius: 18px 18px 0 0;
-    border: 0; background: transparent; font-size: 0;
+    left: 50%; right: auto; top: 0;
+    transform: translateX(-50%);
+    width: 100%; min-width: 0;
+    height: 34px; min-height: 34px;
+    padding: 0;
+    border-radius: 18px 18px 0 0;
+    border: 0; background: transparent; box-shadow: none;
+    gap: 0; color: inherit;
   }
+  #panelToggle:hover {
+    background: transparent; color: inherit; box-shadow: none; border-color: transparent;
+  }
+  #panelToggle .panel-toggle-icon,
+  #panelToggle .panel-toggle-label { display: none; }
   /* 손잡이 막대 */
   #panelToggle::before {
     content: ''; position: absolute; left: 50%; top: 13px; transform: translateX(-50%);
     width: 42px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.4);
   }
-  #panel.collapsed #panelToggle { right: auto; left: 50%; top: 0; }
+  #panel.collapsed #panelToggle {
+    left: 50%; top: 0; right: auto;
+    background: transparent; border: 0; color: inherit;
+  }
 
   #viewBadge {
     bottom: auto; top: calc(84px + env(safe-area-inset-top));

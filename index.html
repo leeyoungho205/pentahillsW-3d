@@ -15,7 +15,8 @@
   <meta name="apple-mobile-web-app-title" content="펜타힐즈 3D">
   <meta name="mobile-web-app-capable" content="yes">
 
-  <link rel="stylesheet" href="./css/style.css">
+  <!-- 쿼리로 캐시 무효화 — Edge 등이 옛 style.css(원형 접기 버튼)를 붙잡는 것 방지 -->
+  <link rel="stylesheet" href="./css/style.css?v=20260723-panel-tab">
   <!-- three.js 를 CDN이 아니라 저장소에 함께 두어 오프라인에서도 열리게 한다 -->
   <script type="importmap">
   {
@@ -45,7 +46,10 @@
   </header>
 
   <aside id="panel">
-    <button id="panelToggle" aria-label="패널 접기">◀</button>
+    <button id="panelToggle" type="button" aria-label="패널 접기" aria-expanded="true" title="패널 접기">
+      <span class="panel-toggle-icon" aria-hidden="true"></span>
+      <span class="panel-toggle-label">메뉴</span>
+    </button>
     <div class="panel-inner">
 
       <section>
@@ -81,7 +85,7 @@
         </div>
         <button id="compareBtn" class="wide">⚖️ 이 층 1~4호 한번에 비교</button>
         <button id="backBtn" class="wide ghost hidden">↩ 단지 전체 보기로</button>
-        <p class="hint tip">💡 3D에서 동을 클릭해도 선택됩니다. <b>20층은 피난구역</b>이라 건너뜁니다.</p>
+        <p class="hint tip">💡 3D에서 동을 눌러도 선택됩니다. 오른쪽 아래 <b>조작법</b>·<b>이동</b> 버튼으로 화면을 돌리거나 옮길 수 있습니다. <b>20층은 피난구역</b>이라 건너뜁니다.</p>
       </section>
 
       <section>
@@ -174,6 +178,18 @@
   </aside>
 
   <div id="viewBadge" class="hidden"></div>
+
+  <!-- 조작 안내 + 이동 토글 (데스크·모바일 공통) -->
+  <div id="controlsDock" class="controls-dock">
+    <div id="controlsHelp" class="controls-help">
+      <div class="controls-help-head">
+        <b>조작법</b>
+        <button type="button" id="controlsHelpToggle" aria-expanded="true" title="조작법 접기">−</button>
+      </div>
+      <ul id="controlsHelpList"></ul>
+    </div>
+    <button type="button" id="panModeBtn" class="fab-pan" aria-pressed="false" title="화면 이동 모드">✋ 이동</button>
+  </div>
 
   <!-- 전 세대 일조 히트맵 (계산 후 화면 아래에 펼쳐짐) -->
   <div id="heatBox" class="hidden">

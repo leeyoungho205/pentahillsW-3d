@@ -83,56 +83,97 @@ controls.maxPolarAngle = Math.PI / 2 - 0.02;
 controls.target.set(-20, 70, 40);
 controls.addEventListener('change', () => requestRender());
 
+/** 데스크톱 3D가 그릴 영역 (패널을 제외한 오른쪽). 픽·렌더가 공유한다. */
+const viewRect = { inset: 0, x: 0, y: 0, width: innerWidth, height: innerHeight };
+
 /** 데스크톱 왼쪽 패널이 가리는 폭(px). 폰 바텀시트는 0. */
 function getDesktopPanelInset() {
   if (matchMedia('(max-width: 720px)').matches) return 0;
   const panel = document.getElementById('panel');
   if (!panel) return 0;
   const right = panel.getBoundingClientRect().right;
-  // 접혀 거의 화면 밖이면 토글 버튼만 남긴 여백
-  if (right < 24) return 52;
-  return Math.min(Math.ceil(right + 14), Math.floor(innerWidth * 0.55));
+  // 접힌 탭만 보일 때(약 50px)도 그 폭만큼 여백을 둔다
+  if (panel.classList.contains('collapsed') || right < 80) {
+    return Math.max(52, Math.ceil(right + 12));
+  }
+  // 패널 오른쪽 + 여유 — 단지가 메뉴 뒤로 들어가지 않게
+  return Math.min(Math.ceil(right + 20), Math.floor(innerWidth * 0.55));
 }
 
 /**
- * 왼쪽 메뉴가 단지를 가리지 않도록 투영을 오른쪽으로 민다.
- * setViewOffset 으로 "보이는 영역"의 중심에 단지가 오게 한다.
+ * 패널을 제외한 오른쪽 영역에만 3D가 그려지도록 aspect·뷰포트를 맞춘다.
+ * setViewOffset 대신 setViewport/scissor 를 써서 중심·비율이 정확히 맞는다.
  */
 function updateViewLayout() {
   const w = innerWidth;
   const h = innerHeight;
   const inset = getDesktopPanelInset();
+  const viewW = Math.max(1, w - inset);
 
-  camera.aspect = w / h;
-  if (inset > 1) {
-    // 가상 필름을 inset 만큼 넓히고, 오른쪽 w 구간만 화면에 그림 → 중심이 오른쪽으로 이동
-    camera.setViewOffset(w + inset, h, inset, 0, w, h);
-  } else {
-    camera.clearViewOffset();
-  }
+  viewRect.inset = inset;
+  viewRect.x = inset;
+  viewRect.y = 0;
+  viewRect.width = viewW;
+  viewRect.height = h;
+
+  camera.aspect = viewW / h;
+  camera.clearViewOffset();
   camera.updateProjectionMatrix();
   requestRender();
   return inset;
 }
 
+/** 포인터 → 뷰포트 기준 NDC (왼쪽 패널 영역은 제외하고 계산) */
+function pointerToNdc(clientX, clientY) {
+  const nx = ((clientX - viewRect.x) / viewRect.width) * 2 - 1;
+  const ny = -((clientY - viewRect.y) / viewRect.height) * 2 + 1;
+  return new THREE.Vector2(nx, ny);
+}
+
 /**
- * 화면(또는 패널을 뺀 보이는 영역) 비율에 맞춰 카메라를 뒤로 물린다.
- * 세로 폰·왼쪽 메뉴가 있을 때 단지가 잘리지 않게 하되, 모델·라벨이 잘 보이도록 약간 줌인한다.
+ * 패널을 뺀 보이는 영역 비율에 맞춰 카메라 거리를 잡는다.
+ * 데스크톱은 단지가 잘리지 않게 여유 있게, 모바일 프레이밍은 그대로 둔다.
  */
 function frameSite() {
-  const inset = updateViewLayout();
-  const visibleW = Math.max(280, innerWidth - inset);
-  const visibleAspect = visibleW / innerHeight;
+  updateViewLayout();
+  const viewW = viewRect.width;
+  const viewH = viewRect.height;
+  const visibleAspect = viewW / Math.max(1, viewH);
+  const isMobile = matchMedia('(max-width: 720px)').matches;
 
-  // 단지 반경을 조금 작게 잡아 카메라가 더 가까이 온다 (1차 동이 화면을 채움)
-  const SITE_RADIUS = 300;
+  // 데스크톱: 단지·라벨이 여유 있게 보이도록 한 단 더 줌아웃
+  const siteRadius = isMobile ? 280 : 320;
+  const padding = isMobile ? 0.95 : 1.05;
+
   const vFov = THREE.MathUtils.degToRad(camera.fov);
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * visibleAspect);
-  const dist = SITE_RADIUS / Math.tan(Math.min(vFov, hFov) / 2) * 0.98;
+  const dist = siteRadius / Math.tan(Math.min(vFov, hFov) / 2) * padding;
 
   const dir = camera.position.clone().sub(controls.target).normalize();
   camera.position.copy(controls.target).addScaledVector(dir, dist);
   requestRender();
+}
+
+/** 전체 화면을 하늘색으로 지운 뒤, 패널 오른쪽 뷰포트에만 씬을 그린다 */
+function renderScene() {
+  const w = innerWidth;
+  const h = innerHeight;
+  // 왼쪽(메뉴 아래)은 씬을 그리지 않고 배경만 — 단지가 패널에 가려지지 않음
+  if (scene.background && scene.background.isColor) {
+    renderer.setClearColor(scene.background, 1);
+  }
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, w, h);
+  renderer.clear();
+
+  const { x, width, height } = viewRect;
+  if (viewRect.inset > 1) {
+    renderer.setScissorTest(true);
+    renderer.setScissor(x, 0, width, height);
+    renderer.setViewport(x, 0, width, height);
+  }
+  renderer.render(scene, camera);
+  renderer.setScissorTest(false);
 }
 
 /** 패널 접힘 애니메이션 동안 inset 을 따라가며, 끝나면 단지 프레이밍을 맞춘다 */
@@ -498,21 +539,113 @@ $('chkP2').addEventListener('change', (e) => {
   markShadowsDirty();
 });
 
-$('panelToggle').addEventListener('click', () => {
+function syncPanelToggleState() {
   const p = $('panel');
-  p.classList.toggle('collapsed');
-  // 폰에서는 바텀시트 손잡이라 화살표를 쓰지 않는다 (CSS가 막대로 그린다)
-  $('panelToggle').textContent = IS_PHONE ? '' : (p.classList.contains('collapsed') ? '▶' : '◀');
+  const collapsed = p.classList.contains('collapsed');
+  const btn = $('panelToggle');
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  btn.setAttribute('aria-label', collapsed ? '패널 펼치기' : '패널 접기');
+  btn.title = collapsed ? '메뉴 열기' : '메뉴 접기';
+}
+
+$('panelToggle').addEventListener('click', () => {
+  $('panel').classList.toggle('collapsed');
+  syncPanelToggleState();
   // 데스크톱: 패널 폭에 맞춰 3D 중심을 오른쪽으로 밀거나 다시 넓힌다
   if (!matchMedia('(max-width: 720px)').matches) syncViewAfterPanelChange();
 });
 // 폰에서는 3D가 먼저 보이도록 시트를 접어두되, 동 번호 라벨은 처음부터 켠다
 if (IS_PHONE) {
   $('panel').classList.add('collapsed');
-  $('panelToggle').textContent = '';
 }
+syncPanelToggleState();
 $('chkLabel').checked = true;
 labelsGroup.visible = true;
+
+/** 조작법 문구 — 데스크/모바일 · 이동 모드에 맞게 갱신 */
+function updateControlsHelp(panOn) {
+  const list = $('controlsHelpList');
+  if (!list) return;
+  const rows = IS_PHONE
+    ? (panOn
+      ? [
+          ['한 손가락', '화면 이동'],
+          ['두 손가락', '줌 · 회전'],
+          ['이동 끄기', '다시 회전 모드'],
+        ]
+      : [
+          ['한 손가락', '회전'],
+          ['두 손가락', '줌 · 이동'],
+          ['이동 켜기', '한 손가락으로 이동'],
+        ])
+    : (panOn
+      ? [
+          ['왼쪽 드래그', '화면 이동'],
+          ['오른쪽 드래그', '회전'],
+          ['휠', '줌'],
+          ['이동 끄기', '다시 회전 모드'],
+        ]
+      : [
+          ['왼쪽 드래그', '회전'],
+          ['오른쪽 드래그', '이동'],
+          ['휠', '줌'],
+          ['이동 켜기', '왼쪽 드래그로 이동'],
+        ]);
+  list.innerHTML = rows.map(([key, val]) =>
+    `<li><span class="key">${key}</span><span>${val}</span></li>`).join('');
+}
+
+/**
+ * '이동' 토글 — 데스크·모바일 공통.
+ * 켜면 주 제스처(왼클릭 / 한 손가락)가 팬, 끄면 회전.
+ */
+function setPanMode(on) {
+  const btn = $('panModeBtn');
+  if (!btn) return;
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? '✋ 이동 중' : '✋ 이동';
+
+  if (on) {
+    controls.touches.ONE = THREE.TOUCH.PAN;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+  } else {
+    controls.touches.ONE = THREE.TOUCH.ROTATE;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+  }
+  controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+  updateControlsHelp(on);
+}
+
+$('panModeBtn').addEventListener('click', () => {
+  const on = $('panModeBtn').getAttribute('aria-pressed') !== 'true';
+  setPanMode(on);
+});
+setPanMode(false);
+
+// 조작법 접기/펼치기 (선택은 로컬에 기억)
+const helpEl = $('controlsHelp');
+const helpToggle = $('controlsHelpToggle');
+const HELP_KEY = 'pentahills-controls-help-collapsed';
+function setHelpCollapsed(collapsed) {
+  helpEl.classList.toggle('collapsed', collapsed);
+  helpToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  helpToggle.textContent = collapsed ? '?' : '−';
+  helpToggle.title = collapsed ? '조작법 펼치기' : '조작법 접기';
+  try { localStorage.setItem(HELP_KEY, collapsed ? '1' : '0'); } catch (_) { /* 저장 실패 무시 */ }
+}
+helpToggle.addEventListener('click', () => {
+  setHelpCollapsed(!helpEl.classList.contains('collapsed'));
+});
+try {
+  setHelpCollapsed(localStorage.getItem(HELP_KEY) === '1');
+} catch (_) {
+  setHelpCollapsed(false);
+}
 
 // ────────────────────────────────────────────────────────────
 // 7. 조망 보기
@@ -738,11 +871,9 @@ canvas.addEventListener('pointerup', (e) => {
   downAt = null;
   if (moved > 5 || state.viewMode) return;
 
-  const r = canvas.getBoundingClientRect();
-  pickRay.setFromCamera(new THREE.Vector2(
-    ((e.clientX - r.left) / r.width) * 2 - 1,
-    -((e.clientY - r.top) / r.height) * 2 + 1,
-  ), camera);
+  // 패널 왼쪽(3D 미사용 영역) 클릭은 무시
+  if (e.clientX < viewRect.x) return;
+  pickRay.setFromCamera(pointerToNdc(e.clientX, e.clientY), camera);
 
   const hit = pickRay.intersectObjects([towersGroup], true)[0];
   if (!hit) return;
@@ -932,7 +1063,7 @@ function animate(now) {
   if (!needsRender) return;
 
   animateLake(lake, now / 1000);
-  renderer.render(scene, camera);
+  renderScene();
   needsRender = false;
 }
 
@@ -952,19 +1083,26 @@ window.__app = {
 };
 
 let lastPortrait = innerWidth < innerHeight;
+let resizeFrameTimer = 0;
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 
-  // 폰을 가로/세로로 돌렸거나 창 너비가 바뀌면 패널 inset·거리 다시 맞춤
   const portrait = innerWidth < innerHeight;
   const orientationChanged = portrait !== lastPortrait;
   lastPortrait = portrait;
 
-  if (!state.viewMode && (orientationChanged || !matchMedia('(max-width: 720px)').matches)) {
-    frameSite();
-  } else {
-    updateViewLayout();
-  }
+  // 리사이즈 중에도 inset 은 바로 맞추고, 거리 재계산은 짧게 디바운스
+  updateViewLayout();
+  if (state.viewMode) return;
+
+  const shouldReframe =
+    orientationChanged || !matchMedia('(max-width: 720px)').matches;
+  if (!shouldReframe) return;
+
+  clearTimeout(resizeFrameTimer);
+  resizeFrameTimer = setTimeout(() => {
+    if (!state.viewMode) frameSite();
+  }, orientationChanged ? 0 : 80);
 });
 
 // 탭이 다시 보이면 한 번 그려 최신 화면을 맞춘다
