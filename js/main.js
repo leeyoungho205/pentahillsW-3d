@@ -21,7 +21,8 @@ import {
   NORTH_OFFSET_DEG, TYPE_NAMES, px2m,
 } from './siteData.js';
 import { getSunPosition, sunDirectionVector, kstDate, findSunriseSunset, formatHour } from './sun.js';
-import { createTower, getUnitAnchor } from './buildings.js';
+import { createTower, getUnitAnchor, createWindowFrame, placeWindowFrame } from './buildings.js';
+import { UNIT_PLACEMENT, TYPE_COLORS } from './unitData.js';
 import {
   createTerrain, createPlanOverlay, createOuterGround, createLake, animateLake,
   createTrees, createLowBlocks, createHills, createCompass, createBuildingLabel,
@@ -199,16 +200,28 @@ function syncBuilding() {
   if (+$('floorSlider').value > b.floors) $('floorSlider').value = b.floors;
   $('floorLabel').textContent = `${$('floorSlider').value}층`;
 
+  const place = UNIT_PLACEMENT[b.id] || [];
   $('hoSelect').innerHTML = '';
   b.types.forEach((t, i) => {
     const o = document.createElement('option');
     o.value = String(i + 1);
-    o.textContent = `${i + 1}호 · ${TYPE_NAMES[t] || t}`;
+    // 호수마다 전면 폭이 달라서 조망 시야도 달라진다 — 목록에서 바로 보이게 한다
+    const w = place[i] ? ` · 전면 ${place[i].wid.toFixed(1)}m` : '';
+    o.textContent = `${i + 1}호 · ${TYPE_NAMES[t] || t}${w}`;
     $('hoSelect').appendChild(o);
   });
+  updateHoSwatch();
+}
+
+/** 선택한 호수의 평형 색(배치도 범례 색)을 칩으로 보여준다 */
+function updateHoSwatch() {
+  const b = BUILDINGS.find((x) => x.id === $('bldSelect').value);
+  const t = b.types[+$('hoSelect').value - 1];
+  $('hoSwatch').style.background = TYPE_COLORS[t] || '#888';
+  $('hoSwatch').title = TYPE_NAMES[t] || t;
 }
 $('bldSelect').addEventListener('change', () => { syncBuilding(); if (state.viewMode) enterViewMode(); });
-$('hoSelect').addEventListener('change', () => { if (state.viewMode) enterViewMode(); });
+$('hoSelect').addEventListener('change', () => { updateHoSwatch(); if (state.viewMode) enterViewMode(); });
 $('floorSlider').addEventListener('input', () => {
   $('floorLabel').textContent = `${$('floorSlider').value}층`;
   if (state.viewMode) enterViewMode();
@@ -289,6 +302,9 @@ function measureOpenness(position, normal) {
   return hits.length ? hits[0].distance : null;
 }
 
+// 세대 안에서 내다보는 느낌을 주는 창틀·발코니 (조망 모드에서만 보인다)
+let windowFrame = null;
+
 function enterViewMode() {
   const a = currentAnchor();
   if (!state.viewMode) {
@@ -299,24 +315,35 @@ function enterViewMode() {
     controls.maxPolarAngle = Math.PI;      // 세대에서는 하늘까지 올려다볼 수 있게
   }
 
-  camera.position.copy(a.position);
-  controls.target.copy(a.position.clone().add(a.normal.clone().multiplyScalar(60)));
-  camera.fov = 62;
+  // 창틀은 세대 전면 폭에 맞춰 만든다 → 큰 평형일수록 시야가 넓게 트인다
+  const tower = towerMap[a.id];
+  if (windowFrame && windowFrame.parent) windowFrame.parent.remove(windowFrame);
+  windowFrame = createWindowFrame(a.wid);
+  tower.add(windowFrame);
+  placeWindowFrame(windowFrame, tower, a.floor, a.ho);
+
+  // 카메라는 창 바깥이 아니라 거실 안쪽 눈높이에 둔다
+  camera.position.copy(a.eye);
+  controls.target.copy(a.eye.clone().add(a.normal.clone().multiplyScalar(60)));
+  camera.fov = 66;
   camera.updateProjectionMatrix();
 
   const b = BUILDINGS.find((x) => x.id === a.id);
-  const h = (a.floor - 0.5) * FLOOR_HEIGHT;
+  const type = b.types[a.ho - 1];
   const dist = measureOpenness(a.position, a.normal);
   const openText = dist === null ? '<b>정면 막힘 없음</b>' : `정면 <b>${dist.toFixed(0)}m</b> 앞 건물`;
 
   $('viewBadge').innerHTML =
-    `<b>${a.id}동 ${a.floor}층 ${a.ho}호</b> (${TYPE_NAMES[b.types[a.ho - 1]] || ''}) · 지상 약 ${h.toFixed(0)}m · ${openText}`;
+    `<i class="swatch" style="background:${TYPE_COLORS[type] || '#888'}"></i>` +
+    `<b>${a.id}동 ${a.floor}층 ${a.ho}호</b> ${TYPE_NAMES[type] || ''} · ` +
+    `지상 ${a.floorY.toFixed(0)}m · 전면폭 ${a.wid.toFixed(1)}m · ${openText}`;
   $('viewBadge').classList.remove('hidden');
   $('backBtn').classList.remove('hidden');
 }
 
 function exitViewMode() {
   state.viewMode = false;
+  if (windowFrame && windowFrame.parent) { windowFrame.parent.remove(windowFrame); windowFrame = null; }
   camera.position.copy(state.savedCam.pos);
   controls.target.copy(state.savedCam.target);
   camera.fov = 50;
@@ -365,19 +392,21 @@ $('compareBtn').addEventListener('click', () => {
   scene.updateMatrixWorld(true);
 
   const rows = [1, 2, 3, 4].map((ho) => {
-    const { position, normal } = getUnitAnchor(towerMap[id], floor, ho);
+    const { position, normal, wid } = getUnitAnchor(towerMap[id], floor, ho);
     const r = analyzeDaylight(position, normal, blockers, state.date);
     const open = measureOpenness(position, normal);
-    return { ho, type: TYPE_NAMES[b.types[ho - 1]] || '', r, open };
+    const t = b.types[ho - 1];
+    return { ho, t, type: TYPE_NAMES[t] || '', wid, r, open };
   });
   const best = Math.max(...rows.map((x) => x.r.totalHours));
 
   $('compareBox').classList.remove('hidden');
   $('compareTitle').textContent = `${id}동 ${floor}층 · ${state.date}`;
   $('compareTable').innerHTML =
-    `<tr><th>호</th><th>주택형</th><th>총 일조</th><th>09~15시</th><th>정면 개방</th></tr>` +
+    `<tr><th>호</th><th>주택형</th><th>전면</th><th>총 일조</th><th>09~15시</th><th>정면 개방</th></tr>` +
     rows.map((x) => `<tr class="${x.r.totalHours === best ? 'best' : ''}">
-      <td>${x.ho}호</td><td>${x.type}</td>
+      <td><i class="swatch" style="background:${TYPE_COLORS[x.t] || '#888'}"></i>${x.ho}호</td>
+      <td>${x.type}</td><td>${x.wid.toFixed(1)}m</td>
       <td>${x.r.totalHours.toFixed(1)}h</td><td>${x.r.coreHours.toFixed(1)}h</td>
       <td>${x.open === null ? '개방' : `${x.open.toFixed(0)}m`}</td></tr>`).join('');
 });
