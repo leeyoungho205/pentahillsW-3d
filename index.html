@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>펜타힐즈 더블유 3D 일조·조망 시뮬레이터</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>배치도를 읽어 단지를 세우는 중…</p>
+  </div>
+
+  <header id="topbar">
+    <h1>펜타힐즈 더블유 <span>3D 일조 · 조망 시뮬레이터</span></h1>
+    <div id="sunInfo">
+      <span class="chip">태양 고도 <b id="sunAlt">--°</b></span>
+      <span class="chip">방위 <b id="sunAz">--°</b></span>
+      <span class="chip">일출 <b id="sunrise">--:--</b></span>
+      <span class="chip">일몰 <b id="sunset">--:--</b></span>
+    </div>
+  </header>
+
+  <aside id="panel">
+    <button id="panelToggle" aria-label="패널 접기">◀</button>
+    <div class="panel-inner">
+
+      <section>
+        <h2>☀️ 날짜 · 시각</h2>
+        <div class="row"><input type="date" id="dateInput" value="2026-12-22"></div>
+        <div class="preset-row">
+          <button data-date="2026-06-21" class="preset">하지</button>
+          <button data-date="2026-03-20" class="preset">춘분</button>
+          <button data-date="2026-09-23" class="preset">추분</button>
+          <button data-date="2026-12-22" class="preset on">동지</button>
+        </div>
+        <label class="slider-label">시각 <b id="timeLabel">12:00</b></label>
+        <input type="range" id="timeSlider" min="0" max="24" step="0.0833" value="12">
+        <button id="playBtn" class="wide">▶ 하루 시간 흐름 재생</button>
+      </section>
+
+      <section>
+        <h2>🏢 세대 선택</h2>
+        <div class="row two">
+          <label>동 <select id="bldSelect"></select></label>
+          <label>호수 <select id="hoSelect"></select></label>
+        </div>
+        <label class="slider-label">층 <b id="floorLabel">20층</b></label>
+        <input type="range" id="floorSlider" min="2" max="59" step="1" value="20">
+        <div class="row two">
+          <button id="viewBtn">👁 조망 보기</button>
+          <button id="analyzeBtn">📊 일조 분석</button>
+        </div>
+        <button id="compareBtn" class="wide">⚖️ 이 층 1~4호 한번에 비교</button>
+        <button id="backBtn" class="wide ghost hidden">↩ 단지 전체 보기로</button>
+      </section>
+
+      <section id="resultBox" class="hidden">
+        <h2>📊 일조 분석 결과</h2>
+        <div id="resultNums"></div>
+        <canvas id="chart" width="290" height="62"></canvas>
+        <div class="legend">
+          <span><i style="background:#ffc83d"></i>직사광</span>
+          <span><i style="background:#8e6ad6"></i>가림</span>
+          <span><i style="background:#3d4a63"></i>반대편</span>
+          <span><i style="background:#161b28"></i>야간</span>
+        </div>
+      </section>
+
+      <section id="compareBox" class="hidden">
+        <h2>⚖️ 호수별 비교</h2>
+        <p class="hint" id="compareTitle"></p>
+        <table id="compareTable"></table>
+      </section>
+
+      <section>
+        <h2>🧭 정북 보정</h2>
+        <p class="hint">
+          배치도 나침반을 픽셀 분석해 잰 값(<b>24°</b>)이 기본으로 들어가 있습니다.
+          실제 지도와 비교해 미세 조정할 수 있습니다.
+        </p>
+        <label class="slider-label">단지 회전 <b id="northLabel">24°</b></label>
+        <input type="range" id="northSlider" min="-180" max="180" step="1" value="24">
+      </section>
+
+      <section>
+        <h2>🏗 2차(남측) 단지</h2>
+        <p class="hint">
+          2차 9개 동은 층수가 공개되지 않아 세대수로 역산했습니다
+          (1,731세대 ÷ 36라인 ≈ 48층). 값을 바꿔 조망·일조 영향을 확인해 보세요.
+        </p>
+        <label class="slider-label">2차 층수 <b id="p2Label">48층</b></label>
+        <input type="range" id="p2Slider" min="5" max="60" step="1" value="48">
+      </section>
+
+      <section>
+        <h2>⚙️ 표시 설정</h2>
+        <label class="check"><input type="checkbox" id="chkPlan"> 원본 배치도 겹쳐 보기 (위치 검증용)</label>
+        <label class="check"><input type="checkbox" id="chkTree" checked> 수목</label>
+        <label class="check"><input type="checkbox" id="chkP2" checked> 2차 단지 표시</label>
+        <label class="check"><input type="checkbox" id="chkPath" checked> 태양 궤적</label>
+        <label class="check"><input type="checkbox" id="chkLabel" checked> 동 번호</label>
+      </section>
+
+    </div>
+  </aside>
+
+  <div id="viewBadge" class="hidden"></div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

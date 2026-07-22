@@ -1,0 +1,12 @@
+# 앱이 직접 쓰지 않는 참고용 원본 이미지는 저장소에 올리지 않는다
+#  - model_photo.jpg : 모델하우스 현장 사진 (일반인 인물이 찍혀 있어 공개 배포 부적합)
+#  - site_plan.jpg   : 배치도 사진 (공식 db.jpg로 대체됨)
+#  - dh.jpg          : 동·호수 배치도 (좌표 추출에만 사용, 런타임에는 불필요)
+assets/model_photo.jpg
+assets/site_plan.jpg
+assets/dh.jpg
+
+# 에디터 / OS
+.DS_Store
+.vscode/
+.idea/
