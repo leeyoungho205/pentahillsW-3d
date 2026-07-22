@@ -152,36 +152,41 @@ export function createTower(cfg) {
   return group;
 }
 
-/**
- * 평형별 색상 표시 켜기/끄기
- * 켜면 배치도 범례와 똑같은 색이 각 날개(세대)에 입혀져서
- * 어느 블록이 어떤 평형인지 3D에서 바로 보인다.
- */
-export function setTypeColorMode(tower, on) {
-  (tower.userData.wingMeshes || []).forEach((wing) => {
-    if (!wing) return;
-    const p = wing.userData.palette;
-    wing.material.forEach((m, idx) => {
-      // BoxGeometry 재질 순서: +X, -X, +Y(지붕), -Y, +Z, -Z
-      const isRoof = idx === 2 || idx === 3;
-      if (isRoof) m.color.copy(on ? p.roofCol : new THREE.Color(PLAIN_ROOF));
-      else m.color.copy(on ? p.tint : new THREE.Color(PLAIN_WALL));
-    });
+/** 날개 하나를 평형 색 / 기본 외벽색으로 칠한다 */
+function paintWing(wing, colored) {
+  const p = wing.userData.palette;
+  wing.material.forEach((m, idx) => {
+    // BoxGeometry 재질 순서: +X, -X, +Y(지붕), -Y, +Z, -Z
+    const isRoof = idx === 2 || idx === 3;
+    if (isRoof) m.color.copy(colored ? p.roofCol : new THREE.Color(PLAIN_ROOF));
+    else m.color.copy(colored ? p.tint : new THREE.Color(PLAIN_WALL));
   });
 }
 
+/** 동 전체를 평형 색 / 기본색으로 (2차 동 중립 처리, 전체 색상 모드에 사용) */
+export function setTypeColorMode(tower, on) {
+  (tower.userData.wingMeshes || []).forEach((w) => w && paintWing(w, on));
+}
+
 /**
- * 선택한 호수의 날개에 테두리를 둘러 어디인지 바로 알아보게 한다
- * @param {number|null} ho - null이면 강조 해제
+ * 선택한 호수의 날개만 평형 색으로 칠해서 어느 날개인지 알아보게 한다.
+ * 나머지 날개는 기본 외벽색이라, 색이 들어온 한 곳이 곧 선택한 세대다.
+ *
+ * @param {number|null} ho       - 선택한 호수 (null이면 전부 기본색)
+ * @param {boolean} colorAll     - 모든 날개에 평형 색을 입히는 모드인지
  */
-export function highlightWing(tower, ho) {
+export function selectWing(tower, ho, colorAll = false) {
+  const cfg = tower.userData;
+  const sel = ho == null ? -1 : hoToWingIndex(cfg, ho);
+  (cfg.wingMeshes || []).forEach((w, i) => w && paintWing(w, colorAll || i === sel));
+
   const old = tower.getObjectByName('wingHighlight');
   if (old) { old.geometry.dispose(); old.material.dispose(); tower.remove(old); }
-  if (ho == null) return;
 
-  const wing = tower.userData.wingMeshes[hoToWingIndex(tower.userData, ho)];
+  // 모든 날개가 색칠된 상태에서는 색만으로 구분이 안 되므로 이때만 테두리를 두른다
+  if (sel < 0 || !colorAll) return;
+  const wing = cfg.wingMeshes[sel];
   if (!wing) return;
-
   const edges = new THREE.LineSegments(
     new THREE.EdgesGeometry(wing.geometry),
     new THREE.LineBasicMaterial({ color: 0xffd23d, depthTest: false, transparent: true, opacity: 0.95 })

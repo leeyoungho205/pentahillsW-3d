@@ -23,7 +23,7 @@ import {
 import { getSunPosition, sunDirectionVector, kstDate, findSunriseSunset, formatHour } from './sun.js';
 import {
   createTower, getUnitAnchor, createWindowFrame, placeWindowFrame,
-  setTypeColorMode, highlightWing,
+  setTypeColorMode, selectWing,
 } from './buildings.js';
 import { UNIT_PLACEMENT, TYPE_COLORS } from './unitData.js';
 import {
@@ -141,7 +141,10 @@ setTimeout(() => document.getElementById('loading').classList.add('done'), 6000)
 // ────────────────────────────────────────────────────────────
 // 4. 상태값
 // ────────────────────────────────────────────────────────────
-const state = { date: '2026-12-22', hour: 12, playing: false, viewMode: false, savedCam: null };
+const state = {
+  date: '2026-12-22', hour: 12, playing: false, viewMode: false, savedCam: null,
+  picked: false,   // 사용자가 세대를 고르기 전에는 동에 색을 입히지 않는다
+};
 
 // ────────────────────────────────────────────────────────────
 // 5. 태양
@@ -218,7 +221,12 @@ function syncBuilding() {
   updateHoSwatch();
 }
 
-/** 선택한 호수의 평형 색 칩 + 3D 날개 강조를 갱신 */
+/**
+ * 선택한 호수의 평형 색 칩 + 3D 날개 색칠을 갱신
+ *
+ * 기본 상태에서는 동에 색이 전혀 없고, 세대를 고른 순간
+ * 그 날개 하나만 평형 색으로 칠해져서 어디인지 바로 보인다.
+ */
 function updateHoSwatch() {
   const b = BUILDINGS.find((x) => x.id === $('bldSelect').value);
   const ho = +$('hoSelect').value;
@@ -226,13 +234,22 @@ function updateHoSwatch() {
   $('hoSwatch').style.background = TYPE_COLORS[t] || '#888';
   $('hoSwatch').title = TYPE_NAMES[t] || t;
 
-  // 선택한 호수의 날개만 테두리로 강조 (다른 동의 강조는 지운다)
-  Object.entries(towerMap).forEach(([id, tw]) => highlightWing(tw, id === b.id ? ho : null));
-
-  // 색상표에서 지금 선택된 평형을 표시
-  document.querySelectorAll('#typeLegend .legend-item').forEach((el) => {
-    el.classList.toggle('on', el.dataset.type === t);
+  const colorAll = $('chkType').checked;
+  Object.entries(towerMap).forEach(([id, tw]) => {
+    // 아직 아무 세대도 고르지 않았으면 전부 기본색으로 둔다
+    const pick = state.picked && id === b.id ? ho : null;
+    selectWing(tw, pick, colorAll);
   });
+
+  document.querySelectorAll('#typeLegend .legend-item').forEach((el) => {
+    el.classList.toggle('on', state.picked && el.dataset.type === t);
+  });
+}
+
+/** 사용자가 세대를 실제로 고른 시점부터 색 표시를 시작한다 */
+function markPicked() {
+  state.picked = true;
+  updateHoSwatch();
 }
 
 /**
@@ -263,12 +280,12 @@ function buildTypeLegend() {
     $('bldSelect').value = first.id;
     syncBuilding();
     $('hoSelect').value = String(first.ho);
-    updateHoSwatch();
+    markPicked();
     if (state.viewMode) enterViewMode();
   });
 }
-$('bldSelect').addEventListener('change', () => { syncBuilding(); if (state.viewMode) enterViewMode(); });
-$('hoSelect').addEventListener('change', () => { updateHoSwatch(); if (state.viewMode) enterViewMode(); });
+$('bldSelect').addEventListener('change', () => { syncBuilding(); markPicked(); if (state.viewMode) enterViewMode(); });
+$('hoSelect').addEventListener('change', () => { markPicked(); if (state.viewMode) enterViewMode(); });
 $('floorSlider').addEventListener('input', () => {
   $('floorLabel').textContent = `${$('floorSlider').value}층`;
   if (state.viewMode) enterViewMode();
@@ -323,9 +340,7 @@ $('chkPlan').addEventListener('change', (e) => { planOverlay.visible = e.target.
 $('chkTree').addEventListener('change', (e) => { trees.visible = e.target.checked; });
 $('chkPath').addEventListener('change', (e) => { if (sunPathLine) sunPathLine.visible = e.target.checked; });
 $('chkLabel').addEventListener('change', (e) => { labelsGroup.visible = e.target.checked; });
-$('chkType').addEventListener('change', (e) => {
-  Object.values(towerMap).forEach((t) => setTypeColorMode(t, e.target.checked));
-});
+$('chkType').addEventListener('change', updateHoSwatch);
 $('chkP2').addEventListener('change', (e) => { phase2Group.visible = e.target.checked; });
 
 $('panelToggle').addEventListener('click', () => {
@@ -406,13 +421,14 @@ function exitViewMode() {
   $('backBtn').classList.add('hidden');
 }
 
-$('viewBtn').addEventListener('click', enterViewMode);
+$('viewBtn').addEventListener('click', () => { markPicked(); enterViewMode(); });
 $('backBtn').addEventListener('click', exitViewMode);
 
 // ────────────────────────────────────────────────────────────
 // 8. 일조 분석
 // ────────────────────────────────────────────────────────────
 $('analyzeBtn').addEventListener('click', () => {
+  markPicked();
   const a = currentAnchor();
   const r = analyzeDaylight(a.position, a.normal, blockers, state.date);
   const box = $('resultBox');
@@ -437,6 +453,7 @@ $('analyzeBtn').addEventListener('click', () => {
 
 // 같은 동에서 1~4호를 한 번에 비교
 $('compareBtn').addEventListener('click', () => {
+  markPicked();
   const id = $('bldSelect').value;
   const floor = +$('floorSlider').value;
   const b = BUILDINGS.find((x) => x.id === id);
